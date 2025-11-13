@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from strands import Agent
 from strands.models import BedrockModel
+from strands.tools import HttpRequestTool
 
 from config.settings import get_settings
 from shared.prompts import SUPERVISOR_PROMPT_TEMPLATE
@@ -23,4 +24,4 @@ def build_agent() -> Agent:
         temperature=settings.bedrock_temperature,
         max_tokens=settings.bedrock_max_tokens,
     )
-    return Agent(model=model, system_prompt=prompt, tools=["http_request"])
+    return Agent(model=model, system_prompt=prompt, tools=[HttpRequestTool()])
