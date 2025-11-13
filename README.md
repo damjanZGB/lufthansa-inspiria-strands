@@ -69,3 +69,4 @@ pip install -e .[dev]
 
 - Functions in `supervisor/renderers.py` convert `conversation_state.destination_cards` and `conversation_state.flight_results` into narrative-ready snippets (used by Paula/Gina/Bianca).
 - Reusable airline/price helpers live in `shared/flight_utils.py` and back both agents + supervisor formatting.
+- `supervisor/composer.py` exposes `compose_reply`, which stitches persona openers/closers with the rendered destination + flight sections for final replies or tooling-based tests.
