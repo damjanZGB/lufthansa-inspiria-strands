@@ -5,6 +5,7 @@ from __future__ import annotations
 from strands import Agent
 from strands.models import BedrockModel
 from strands.tools import HttpRequestTool
+
 from config.settings import get_settings
 from shared.prompts import FLIGHT_SEARCH_PROMPT_TEMPLATE
 
