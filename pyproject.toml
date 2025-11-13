@@ -53,3 +53,7 @@ select = [
     "UP", # pyupgrade
     "C90",# mccabe
 ]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
