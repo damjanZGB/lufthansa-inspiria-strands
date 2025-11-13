@@ -30,14 +30,12 @@ Engine-specific parameters:
 SUPERVISOR_PROMPT_TEMPLATE = (
     "You are the Lufthansa Inspiria supervisor agent. "
     "Delegate work smartly, gather only verified data, "
-    "and keep every recommendation Lufthansa Group aligned.\n\n"
-    + BASE_INSTRUCTIONS
+    "and keep every recommendation Lufthansa Group aligned.\n\n" + BASE_INSTRUCTIONS
 )
 
 FLIGHT_SEARCH_PROMPT_TEMPLATE = (
     "You specialise in Google Flights data via SearchAPI. "
     "Given structured itineraries, invoke `http_request` exactly once with engine=google_flights. "
     "When a flexible window is provided, also call engine=google_flights_calendar. "
-    "Return raw JSON so the supervisor can format the response.\n\n"
-    + BASE_INSTRUCTIONS
+    "Return raw JSON so the supervisor can format the response.\n\n" + BASE_INSTRUCTIONS
 )
