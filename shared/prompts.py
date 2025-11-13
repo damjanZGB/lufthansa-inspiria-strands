@@ -33,6 +33,10 @@ SUPERVISOR_PROMPT_TEMPLATE = (
     "You are the Lufthansa Inspiria supervisor agent. "
     "Delegate work smartly, gather only verified data, "
     "and keep every recommendation Lufthansa Group aligned.\n\n"
+    "Flight search responses are persisted into conversation_state.flight_results "
+    "with raw SearchAPI payloads plus metadata.price_hint; destination scout cards "
+    "live in conversation_state.destination_cards. Always read from those stores "
+    "before drafting answers so you can cite actual data. "
     + BASE_INSTRUCTIONS
     + "\n\nPersona reference (Paula, Gina, Bianca):\n"
     + PERSONA_PROMPT_BLOCK

@@ -15,6 +15,7 @@ The existing **Paul/Gina/Bianca** React frontends remain the user entry point; t
 - ✅ Destination Scout agent prompt, SearchAPI/Open-Meteo service + Lambda handler (`destination_scout/agent.py`, `destination_scout/service.py`, `destination_scout/handler.py`).
 - ✅ Draft Strands manifest describing supervisor routing (`config/supervisor.strands.json`).
 - ✅ Flight Search service + Lambda handler powered by SearchAPI Google Flights/Calendar (`flight_search/service.py`, `flight_search/handler.py`).
+- ✅ Supervisor renderers + prompts wired to `conversation_state.destination_cards` and `flight_results`.
 - 🔜 Validate the Strands manifest via the Strands CLI and hook it into the deployment Lambdas.
 - 🔜 Mirror this folder into a dedicated repo (e.g., `github.com/LHGroup/strands-inspiria`).
 
@@ -63,3 +64,8 @@ pip install -e .[dev]
 - External calls: `https://www.searchapi.io/api/v1/search?engine=google_flights` (mandatory) and `engine=google_flights_calendar` when a window is provided.
 - Response bundle: raw SearchAPI payloads for flights and calendar plus metadata with the Google URLs.
 - Local dry-run: `python scripts/run_flight_search.py payload.json` (omit the argument to use the built-in sample payload).
+
+## Supervisor Renderers
+
+- Functions in `supervisor/renderers.py` convert `conversation_state.destination_cards` and `conversation_state.flight_results` into narrative-ready snippets (used by Paula/Gina/Bianca).
+- Reusable airline/price helpers live in `shared/flight_utils.py` and back both agents + supervisor formatting.
