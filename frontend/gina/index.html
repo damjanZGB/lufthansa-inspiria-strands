@@ -1,0 +1,1241 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" type="image/x-icon" href="../img/lhg_favicon.ico" />
+  <title>Lufthansa Group - Agent Chat</title>
+  <!-- Tailwind CDN (config with LH brand colors) -->
+  <script>
+    window.tailwind = {
+      theme: {
+        extend: {
+          colors: {
+            lhBlue: '#0B1F55',      // Lufthansa deep blue (approx)
+            lhBlueDark: '#07163B',  // darker shade for header
+            lhYellow: '#F7B500',    // Lufthansa yellow (approx)
+            lhSlate: '#0E1B3A',
+          }
+        }
+      }
+    }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Inter font as clean, modern fallback -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --lh-blue: #0B1F55;
+      --lh-blue-dark: #07163B;
+      --lh-yellow: #F7B500;
+    }
+
+    body {
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background-image: url('../img/dAisy-background.png');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      background-attachment: fixed;
+      background-color: #0f172a;
+    }
+
+    .scroll-area {
+      scroll-behavior: smooth;
+    }
+
+    code {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 0 .25rem;
+      border-radius: .25rem;
+    }
+  </style>
+  <!-- React (development UMD) + Babel for JSX inline; fine for a test rig -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+</head>
+
+<body class="bg-[#0f172a] text-slate-100 min-h-screen">
+  <script type="module">
+    import { initPersona, setPersonaFromQuestionnaire, attachPersona, clearPersona } from "../persona.js";
+    window.DaisyPersona = { initPersona, setPersonaFromQuestionnaire, attachPersona, clearPersona };
+    initPersona();
+  </script>
+  <div id="root"></div>
+  <script type="text/babel">
+    const Persona = window.DaisyPersona || {};
+    const CONFIG = (() => {
+      try {
+        const request = new XMLHttpRequest();
+        request.open('GET', './config.json', false);
+        request.send(null);
+        if (request.status >= 200 && request.status < 300) {
+          return JSON.parse(request.responseText);
+        }
+      } catch (error) {
+        console.warn('Config load failed', error);
+      }
+      return {};
+    })();
+    const { useState, useEffect, useRef, useMemo, useCallback } = React;
+    // Sanitizer: strip askuser/sources markers and normalize spacing
+      const sanitizeAssistantText = (t) => {
+        if (!t) return '';
+        let out = String(t);
+        // Remove wrappers
+        out = out.replace(/<user__askuser[^>]*question=\"([^\"]+)\"[^>]*>/gi, '$1');
+        out = out.replace(/<\/user__askuser>/gi, '');
+        out = out.replace(/<sources>[\s\S]*?<\/sources>/gi, '');
+        // Convert common HTML tags to text line breaks and strip others
+        out = out.replace(/<br\s*\/?\s*>/gi, '\n');
+        out = out.replace(/<\/?p[^>]*>/gi, '\n');
+        out = out.replace(/<[^>]+>/g, '');
+        // Strip common Markdown emphasis to simplify downstream parsing
+        out = out.replace(/\*\*/g, '').replace(/__/g, '');
+        // Decode a few common HTML entities
+        out = out.replace(/&nbsp;/gi, ' ')
+                 .replace(/&amp;/gi, '&')
+                 .replace(/&euro;/gi, 'ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬')
+                 .replace(/&(ndash|mdash);/gi, '-');
+        // Normalize smart punctuation to ASCII
+        out = out.replace(/[\u2018\u2019]/g, "'");
+        out = out.replace(/[\u201C\u201D]/g, '"');
+        out = out.replace(/[\u2013\u2014]/g, '-');
+        out = out.replace(/\s*\u00B0\s*C/gi, ' C');
+        // Ensure numbered options appear on separate lines with indentation
+        out = out.replace(/\s(\d{1,2}[\)\.])\s/g, '\n  $1 ');
+        out = out.replace(/\n{3,}/g, '\n\n');
+        return out.trim();
+      };
+    // Parse itinerary options. Supports numbered options and a single, unnumbered itinerary.
+    const parseItineraryOptions = (text) => {
+      const rawText = String(text || '');
+      const lines = rawText.split(/\r?\n/);
+      const options = [];
+      let current = null;
+      const headerRe = /^\s*(\d+)[\)\.]\s+(.+)$/;
+      for (const raw of lines) {
+        const m = String(raw).match(headerRe);
+        if (m) {
+          if (current) options.push(current);
+          current = { header: m[2], legs: [] };
+          continue;
+        }
+        const leg = String(raw).trim();
+        if (/^\-\s*THEN\b/i.test(leg)) {
+          const cleaned = leg.replace(/^\-\s*/, '').replace(/^THEN\s*,?\s*/i, 'THEN ');
+          if (current) current.legs.push(cleaned);
+          continue;
+        }
+        if (/^\-\s*Carriers\s*:/i.test(leg)) {
+          const cleaned = leg.replace(/^\-\s*/, '');
+          if (current) current.legs.push(cleaned);
+          continue;
+        }
+        if (/^\-\s*(Departure|Arrival|Return)\s*:/i.test(leg)) {
+          const cleaned = leg.replace(/^\-\s*/, '');
+          if (current) current.legs.push(cleaned);
+          continue;
+        }
+      }
+      if (current) options.push(current);
+      if (options.length === 0) {
+        const routeLine = lines.find(l => /\b[A-Z]{3}\b\s*(?:->|to|Ã¢â‚¬â€œ|-|Ã¢â‚¬â€)\s*\b[A-Z]{3}\b/.test(l))
+                         || lines.find(l => l.trim().length > 0)
+                         || rawText;
+        const header = sanitizeAssistantText(routeLine || rawText).trim();
+        if (header) options.push({ header, legs: [] });
+      }
+      return options;
+    };
+    // Create a simple PDF blob from an option, loading jsPDF if needed
+    const ensureJsPdf = () => new Promise((resolve) => {
+      if (window.jspdf && window.jspdf.jsPDF) return resolve(window.jspdf.jsPDF);
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      s.crossOrigin = 'anonymous';
+      s.referrerPolicy = 'no-referrer';
+      s.onload = () => resolve(window.jspdf ? window.jspdf.jsPDF : null);
+      s.onerror = () => resolve(null);
+      document.head.appendChild(s);
+    });
+    const generatePdf = async (opt) => {
+      try {
+        const { PDFDocument, StandardFonts } = window.PDFLib || {};
+        if (!PDFDocument) return null;
+        const tryFetch = async (paths) => { for (const p of paths) { try { const res = await fetch(p); if (res.ok) return await res.arrayBuffer(); } catch(_){} } return null; }; const candidates = [ '../img/lufthansa_template_empty_form.pdf', './img/lufthansa_template_empty_form.pdf', '/lufthansa_template_empty_form.pdf', './lufthansa_template_empty_form.pdf', '../lufthansa_template_empty_form.pdf' ]; const formBytes = await tryFetch(candidates); if (!formBytes) return null;
+        const sanitizeLine = (s) => String(s||'').replace(/\*\*/g,'').trim();
+        const parseThenLeg = (line) => {
+          const txt = sanitizeLine(line).replace(/^THEN\s*,?\s*/i, 'THEN ');
+          const m = txt.match(/THEN\s+([A-Z]{2,3})\s*(\d{1,5})\s+([A-Z]{3})\s+(\d{2}:\d{2})\s*->\s*([A-Z]{3})\s+(\d{2}:\d{2})/i);
+          return m ? { carrier:m[1].toUpperCase(), flightNo:m[2], from:m[3].toUpperCase(), dep:m[4], to:m[5].toUpperCase(), arr:m[6] } : null;
+        };
+        const legs=[]; for(const l of (opt?.legs||[])){ const p=parseThenLeg(l); if(p) legs.push(p); }
+        const hdr = String(opt?.header||'');
+        const mRoute = hdr.match(/([A-Z]{3})\s*->\s*([A-Z]{3})/);
+        const mDateHdr = hdr.match(/(\d{4}-\d{2}-\d{2})/);
+        const combined = [hdr, ...(opt?.legs||[])].map(sanitizeLine).join(' ');
+        const findFlight = (s) => {
+          const t = String(s||'');
+          const m1 = t.match(/\b(LH|LX|OS|SN|EW|4Y|EN)\s*(\d{2,5})\b/);
+          if (m1) return { carrier:m1[1].toUpperCase(), flightNo:m1[2] };
+          const m2 = t.match(/\bFlight\s*(\d{2,5})\b/i);
+          if (m2) return { carrier:'LH', flightNo:m2[1] };
+          return null;
+        };
+        if (!legs.length) {
+          const depArrLegs = [];
+          const depRegex = /^(Departure|Return)\s*:\s*([A-Z]{3})[^\d]*(\d{2}:\d{2})/i;
+          const arrRegex = /^Arrival\s*:\s*([A-Z]{3})[^\d]*(\d{2}:\d{2})/i;
+          let pending = null;
+          for (const raw of (opt?.legs||[])) {
+            const line = sanitizeLine(raw);
+            const md = line.match(depRegex);
+            if (md) { pending = { from: md[2].toUpperCase(), dep: md[3] }; continue; }
+            const ma = line.match(arrRegex);
+            if (ma && pending) { depArrLegs.push({ from: pending.from, dep: pending.dep, to: ma[1].toUpperCase(), arr: ma[2] }); pending = null; }
+          }
+          const guessedFlight = findFlight(combined);
+          for (const d of depArrLegs) { legs.push({ carrier: (guessedFlight?.carrier || 'LH'), flightNo: (guessedFlight?.flightNo || ''), ...d }); }
+          if (!legs.length && mRoute) { legs.push({ carrier: (guessedFlight?.carrier || 'LH'), flightNo: (guessedFlight?.flightNo || ''), from: mRoute[1], to: mRoute[2], dep: '', arr: '' }); }
+        }
+        const findDate = (s) => { const m = String(s||'').match(/(\d{4}-\d{2}-\d{2})/); return m ? m[1] : null; };
+        let date = mDateHdr ? mDateHdr[1] : null;
+        if (!date) { for (const raw of (opt?.legs||[])) { const d = findDate(raw); if (d) { date = d; break; } } }
+        if (!date) date = new Date().toISOString().slice(0,10);
+        const findClass = (s) => { const t = String(s).toLowerCase(); if (/premium\s*-?\s*economy|\bpe\b/.test(t)) return 'Premium Economy'; if (/business|\bj\b/.test(t)) return 'Business'; if (/first|\bf\b/.test(t)) return 'First'; if (/economy|\by\b/.test(t)) return 'Economy'; return null; };
+        const findSeat = (s) => { const m = String(s).match(/\b(\d{1,2}[A-Z])\b/i); return m ? m[1].toUpperCase() : null; };
+        const guessedFlight = findFlight(combined);
+        if (guessedFlight) {
+          for (const leg of legs) {
+            if (!leg.flightNo || /^0+$/.test(String(leg.flightNo))) { leg.carrier = guessedFlight.carrier; leg.flightNo = guessedFlight.flightNo; }
+          }
+        }
+        const cabin = findClass(combined);
+        const seatCandidate = findSeat(combined);
+        const finalDoc = await PDFDocument.create();
+        const randInt=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+        const randGate=()=> 'ABCDEFG'[randInt(0,6)] + String(randInt(1,39)).padStart(2,'0');
+        const randZone=()=> String(randInt(1,7)) + (Math.random()<0.35 ? String.fromCharCode(65+randInt(0,2)) : '');
+        const randSeat=()=> String(randInt(1,45)) + 'ABCDEFG'[randInt(0,6)];
+        const randSeqPair=()=> String(randInt(1,23)).padStart(2,'0') + '-' + String(randInt(1,23)).padStart(2,'0');
+        for(const leg of legs){
+          const src = await PDFDocument.load(formBytes);
+          const form = src.getForm();
+          form.getFields().forEach(f=>{ try{ f.setText(''); }catch(e){} });
+          const set=(n,v)=>{ try{ form.getTextField(n).setText(String(v??'')); }catch(e){} };
+          const gate='', zone='', seq='';
+          const seatCode = seatCandidate || '';
+          set('from_to', `${leg.from} -> ${leg.to}`);
+          set('passenger_left', '');
+          set('flight_left', `${(leg.carrier||'LH')}${(leg.flightNo||'')}`.trim());
+          set('date_left', date); set('departure_left', leg.dep);
+          set('seq_no_left', seq); set('gate_left', gate); set('zone_left', zone);
+          set('from_left', leg.from); set('to_left', leg.to);
+          set('class', cabin || 'Economy');
+          set('seat', seatCode);
+          set('passenger_right', '');
+          set('date_right', date); set('departure_right', leg.dep);
+          set('gate_right', gate); set('zone_right', zone); set('seat_right', seatCode); set('seq_no_right', seq);
+          set('flight_right', `${(leg.carrier||'LH')}${(leg.flightNo||'')}`.trim());
+          try { const helv = await src.embedFont(window.PDFLib.StandardFonts.Helvetica);
+            form.updateFieldAppearances(helv); 
+          } 
+            catch (e) { 
+              try { 
+                form.updateFieldAppearances(); 
+              } 
+              catch(_){} 
+            }
+          form.flatten();
+          const [pg]=await finalDoc.copyPages(src,[0]); finalDoc.addPage(pg);
+        }
+        if (finalDoc.getPageCount() === 0) {
+          try {
+            const fallbackSrc = await PDFDocument.load(formBytes);
+            const fallbackForm = fallbackSrc.getForm();
+            try {
+              const helv = await fallbackSrc.embedFont(window.PDFLib.StandardFonts.Helvetica);
+              fallbackForm.updateFieldAppearances(helv);
+            } catch (_) {
+              try { fallbackForm.updateFieldAppearances(); } catch(_){}
+            }
+            try { fallbackForm.flatten(); } catch(_){}
+            const [pg] = await finalDoc.copyPages(fallbackSrc, [0]);
+            finalDoc.addPage(pg);
+          } catch (e) {
+            finalDoc.addPage();
+          }
+        }
+        const bytes=await finalDoc.save();
+        return new Blob([bytes],{type:'application/pdf'});
+      } catch (e) { console.warn('PDF error', e); return null; }
+    };
+    const sanitizeUrl = (value) => {
+      if (typeof value !== 'string') return null;
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    };
+    const FALLBACK_API_URL = 'https://proxy.invalid/invoke';
+    const deriveTranscriptUrl = (invokeUrl) => {
+      try {
+        const derived = new URL(invokeUrl);
+        if (derived.pathname.endsWith('/invoke')) {
+          derived.pathname = derived.pathname.replace(/\/invoke$/, '/log/transcript');
+        } else {
+          derived.pathname = '/log/transcript';
+        }
+        derived.search = '';
+        derived.hash = '';
+        return derived.toString();
+      } catch (_) {
+        return null;
+      }
+    };
+    const formatCurrency = (value, currency) => {
+      if (value === null || value === undefined || value === '') return null;
+      const amount = Number(value);
+      if (Number.isFinite(amount) && currency) {
+        try {
+          return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount);
+        } catch (_) {
+          return `${amount} ${currency}`;
+        }
+      }
+      if (Number.isFinite(amount)) {
+        try {
+          return new Intl.NumberFormat().format(amount);
+        } catch (_) {
+          return String(amount);
+        }
+      }
+      return currency ? `${value} ${currency}` : String(value);
+    };
+    const extractToolResults = (payload) => {
+      if (!payload || typeof payload !== 'object') return [];
+      if (Array.isArray(payload.toolResults)) return payload.toolResults;
+      const rcBundles =
+        payload.returnControlInvocationResults ||
+        payload.sessionState?.returnControlInvocationResults ||
+        [];
+      if (!Array.isArray(rcBundles)) return [];
+      return rcBundles.flatMap((bundle) => bundle?.returnControlInvocationResults || []);
+    };
+    const buildToolCards = (toolResults = []) => {
+      const cards = [];
+      const seen = new Set();
+      for (const entry of toolResults) {
+        if (!entry || typeof entry !== 'object') continue;
+        const path = entry.apiPath || entry.path || '';
+        const result = entry.result || entry;
+        if (!result || result.ok === false) continue;
+        const data = result.data || {};
+        if (typeof path === 'string' && path.startsWith("/google/explore/") && Array.isArray(data.destinations)) {
+          const currency = data?.search_parameters?.currency;
+          for (const dest of data.destinations) {
+            if (!dest || typeof dest !== 'object') continue;
+            const image = dest.image || dest.thumbnail;
+            if (!image || seen.has(image)) continue;
+            seen.add(image);
+            const flight = dest.flight || {};
+            const subtitleParts = [];
+            if (dest.country && dest.country !== dest.name) subtitleParts.push(dest.country);
+            if (flight.price !== undefined && flight.price !== null) {
+              const formattedPrice = formatCurrency(flight.price, currency);
+              if (formattedPrice) subtitleParts.push(formattedPrice);
+            }
+            const airline = flight.airline_name || flight.airline_code;
+            if (airline) subtitleParts.push(airline);
+            cards.push({
+              image,
+              title: dest.name || flight.city || 'Destination',
+              subtitle: subtitleParts.filter(Boolean).join(' | ') || null,
+            });
+            if (cards.length >= 6) break;
+          }
+        } else if (typeof path === 'string' && path.startsWith("/google/flights/") && Array.isArray(data.airports)) {
+          for (const section of data.airports) {
+            const arrivals = Array.isArray(section?.arrival) ? section.arrival : [];
+            for (const airport of arrivals) {
+              if (!airport || typeof airport !== 'object') continue;
+              const image = airport.image || airport.thumbnail;
+              if (!image || seen.has(image)) continue;
+              seen.add(image);
+              const title = airport.city || airport.airport?.name || 'Destination';
+              const subtitleParts = [];
+              if (airport.country) subtitleParts.push(airport.country);
+              if (section?.departure?.[0]?.city && airport.city) {
+                subtitleParts.push(`${section.departure[0].city} -> ${airport.city}`);
+              }
+              cards.push({
+                image,
+                title,
+                subtitle: subtitleParts.filter(Boolean).join(' | ') || null,
+              });
+              if (cards.length >= 6) break;
+            }
+            if (cards.length >= 6) break;
+          }
+        }
+        if (cards.length >= 6) break;
+      }
+      return cards;
+    };
+    const resolveInitialApiUrl = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const apiParam = sanitizeUrl(params.get('api'));
+        if (apiParam) return apiParam;
+      } catch (_) { }
+      const configUrl = sanitizeUrl(CONFIG.apiUrl);
+      if (configUrl) return configUrl;
+      return FALLBACK_API_URL;
+    };
+    // ---- Utilities ----
+    const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()));
+    const DEFAULTS = {
+      API_URL: resolveInitialApiUrl(),
+    };
+    const deriveVariantFromApi = (api) => {
+      try {
+        const host = new URL(api).hostname;
+        const first = host.split('.')[0];
+        return first || 'default';
+      } catch (_) {
+        return 'default';
+      }
+    };
+    const FRONTEND_VARIANT = sanitizeUrl(CONFIG.variant) || deriveVariantFromApi(DEFAULTS.API_URL);
+    const TRANSCRIPT_UPLOAD_ENABLED = CONFIG.transcriptUpload === true;
+    const TRANSCRIPT_SCHEMA_VERSION = CONFIG.transcriptSchemaVersion || '2025-10-18';
+    const MAX_COL = Number.isFinite(CONFIG.maxColumnWidth) ? CONFIG.maxColumnWidth : 250; // hard wrap width for logs
+    const HEADER_SUBTITLE = CONFIG.headerSubtitle || 'Agent Chat · UI Test';
+    const INITIAL_ASSISTANT_TEXT = CONFIG.initialAssistantText || 'Lufthansa Group Inspirational AI flight assistant. Nice to meet you!';
+    function Header({ apiUrl, locationInfo, proxyOnline }) {
+      const formattedTime = (() => {
+        const reference =
+          locationInfo?.localTime instanceof Date
+            ? locationInfo.localTime
+            : new Date(locationInfo?.localTime || Date.now());
+        try {
+          return reference.toLocaleString(
+            undefined,
+            locationInfo?.tz ? { timeZone: locationInfo.tz } : undefined
+          );
+        } catch (_) {
+          return reference.toLocaleString();
+        }
+      })();
+      const locationLabel = locationInfo?.label || 'Detecting location...';
+      const detecting = /detecting/i.test(String(locationLabel));
+      const statusClass = proxyOnline ? 'bg-emerald-400' : 'bg-red-500';
+      const statusTitle = proxyOnline ? 'Proxy online' : 'Proxy offline';
+      return (
+        <header className="sticky top-0 z-10 bg-lhBlueDark/95 backdrop-blur border-b border-white/10">
+          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-[10px]">
+              <img src="../img/imgbin_13fe065efcd84210aac1c831b51682b8.png" alt="Lufthansa Group" className="h-8 w-auto shrink-0" />
+              <div>
+                <h1 className="text-sm font-semibold leading-tight tracking-wide text-white/90">Lufthansa Group</h1>
+                <p className="text-[11px] leading-tight text-white/60">{HEADER_SUBTITLE}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-white/70">
+              <span className={`h-2.5 w-2.5 rounded-full ${statusClass}`} title={statusTitle}></span>
+              <div className="text-right sm:text-left">
+                <div className="flex items-center gap-1.5">
+                  {detecting ? (
+                    <span className="inline-block h-2.5 w-2.5 border-2 border-white/40 border-t-transparent rounded-full animate-spin" aria-label="Detecting location" />
+                  ) : null}
+                  <span>{locationLabel}</span>
+                </div>
+                <div className="text-white/50">{formattedTime}</div>
+              </div>
+            </div>
+          </div>
+        </header>
+      );
+    }
+    function Bubble({ role, text, meta }) {
+      const isUser = role === 'user';
+      const metaObj = meta && typeof meta === 'object' ? meta : null;
+      const cards = metaObj && Array.isArray(metaObj.cards) ? metaObj.cards : [];
+      const pdfMeta = metaObj && metaObj.pdfUrl ? metaObj : null;
+      let metaText = null;
+      if (typeof meta === 'string') {
+        metaText = meta;
+      } else if (metaObj) {
+        if (metaObj.note) {
+          metaText = metaObj.note;
+        } else if (metaObj.cid) {
+          metaText = `cid ${metaObj.cid}`;
+        }
+      }
+      return (
+        <div className={`w-full flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+          <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 border ${isUser ? 'bg-lhYellow/95 text-lhBlue border-transparent' : 'bg-white/5 text-white/95 border-white/10'}`}>
+            <p className="whitespace-pre-wrap text-sm leading-6">{text}</p>
+            {cards.length > 0 && (
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {cards.map((card, idx) => (
+                  <figure key={card.image || `${card.title || 'card'}-${idx}`} className="overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+                    {card.image && (
+                      <div className="aspect-[4/3] overflow-hidden bg-black/30">
+                        <img
+                          src={card.image}
+                          alt={card.title || 'Destination preview'}
+                          loading="lazy"
+                          className="h-full w-full object-cover transition-transform duration-300 hover:scale-[1.03]"
+                        />
+                      </div>
+                    )}
+                    {(card.title || card.subtitle) && (
+                      <figcaption className="p-3 text-xs">
+                        {card.title ? <p className="font-semibold text-white">{card.title}</p> : null}
+                        {card.subtitle ? <p className="text-white/70 mt-0.5">{card.subtitle}</p> : null}
+                      </figcaption>
+                    )}
+                  </figure>
+                ))}
+              </div>
+            )}
+            {pdfMeta && (
+              <p className={`mt-2 text-[12px] ${isUser ? 'text-lhBlue/80' : 'text-white/80'}`}>
+                <a className="underline decoration-dotted" href={pdfMeta.pdfUrl} download={pdfMeta.pdfName || 'itinerary.pdf'}>Download itinerary (PDF)</a>
+              </p>
+            )}
+            {metaText ? (
+              <p className={`mt-1 text-[10px] ${isUser ? 'text-lhBlue/70' : 'text-white/50'}`}>{metaText}</p>
+            ) : null}
+          </div>
+        </div>
+      );
+    }
+    function ChatApp() {
+      // Refs & helpers
+      const scrollRef = useRef(null);
+      const usedFlightNos = useRef(new Set());
+      const genFlightNo = () => {
+        let n; do { n = Math.floor(Math.random() * 10000); } while (usedFlightNos.current.has(n));
+        usedFlightNos.current.add(n); return `LH ${String(n).padStart(4, '0')}`;
+      };
+      // State
+      const [apiUrl] = useState(DEFAULTS.API_URL);
+      const [sessionId] = useState(uid());
+      const [startedAt] = useState(() => new Date());
+      const [flightNo] = useState(genFlightNo()); // fixed per session; new on refresh
+      const [busy, setBusy] = useState(false);
+      const [input, setInput] = useState('');
+      const [messages, setMessages] = useState([
+        { id: uid(), role: 'assistant', text: INITIAL_ASSISTANT_TEXT, ts: new Date().toISOString() }
+      ]);
+      const [lastItinerary, setLastItinerary] = useState(null);
+      const transcriptSentRef = useRef(0);
+      const deriveLookupUrl = (base) => {
+        try {
+          const url = new URL(base);
+          if (url.pathname.endsWith('/invoke')) {
+            url.pathname = url.pathname.replace(/\/invoke$/, '/tools/iata/lookup');
+          } else {
+            url.pathname = '/tools/iata/lookup';
+          }
+          url.search = '';
+          return url.toString();
+        } catch (_) {
+          return null;
+        }
+      };
+      const lookupUrl = deriveLookupUrl(apiUrl);
+      const transcriptUrl = useMemo(() => deriveTranscriptUrl(apiUrl), [apiUrl]);
+      const [locationInfo, setLocationInfo] = useState({
+        label: 'Detecting location...',
+        tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        localTime: new Date(),
+        inferredOrigin: (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('inferred_origin')) || null,
+        lat: null,
+        lon: null,
+        city: '',
+        country: '',
+        method: 'PENDING',
+        airport: null,
+      });
+      const [defaultOrigin, setDefaultOrigin] = useState(() => {
+        const stored = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('inferred_origin') : null;
+        return stored ? stored.toUpperCase() : null;
+      });
+      const [locationResolved, setLocationResolved] = useState(false);
+      const [proxyOnline, setProxyOnline] = useState(true);
+      const locationHintSentRef = useRef(null);
+      // Server-append state
+      const headerSentRef = useRef(false);
+      const savedCountRef = useRef(0); // messages already flushed to server
+      const snitchPendingRef = useRef(false);
+      // Auto-scroll
+      useEffect(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }, [messages, busy]);
+      // Tests
+      useEffect(() => { console.assert(/^LH \d{4}$/.test(flightNo), 'Flight number format invalid', flightNo); }, [flightNo]);
+      useEffect(() => {
+        const timer = setInterval(() => {
+          setLocationInfo(prev => ({ ...prev, localTime: new Date() }));
+        }, 1000);
+        return () => clearInterval(timer);
+      }, []);
+      useEffect(() => {
+        const inferIata = async (input) => {
+          if (!lookupUrl) return null;
+          let term = '';
+          let lat;
+          let lon;
+          if (typeof input === 'string') {
+            term = input.trim();
+          } else if (input && typeof input === 'object') {
+            const termCandidates = [input.term, input.city, input.country];
+            for (const candidate of termCandidates) {
+              if (typeof candidate === 'string' && !term) {
+                const trimmed = candidate.trim();
+                if (trimmed) term = trimmed;
+              }
+            }
+            const latCandidate = Number(input.lat ?? input.latitude);
+            const lonCandidate = Number(input.lon ?? input.longitude);
+            if (Number.isFinite(latCandidate) && Number.isFinite(lonCandidate)) {
+              lat = latCandidate;
+              lon = lonCandidate;
+            }
+          }
+          const hasTerm = term.length > 0;
+          const hasCoords = Number.isFinite(lat) && Number.isFinite(lon);
+          if (!hasTerm && !hasCoords) return null;
+          const params = new URLSearchParams();
+          if (hasTerm) params.set('term', term);
+          if (hasCoords) {
+            params.set('lat', lat.toFixed(6));
+            params.set('lon', lon.toFixed(6));
+          }
+          params.set('limit', '5');
+          try {
+            const res = await fetch(`${lookupUrl}?${params.toString()}`);
+            if (!res.ok) {
+              setProxyOnline(true);
+              return null;
+            }
+            setProxyOnline(true);
+            const data = await res.json();
+            const match = (data.matches || [])[0];
+            if (!match) return null;
+            return {
+              code: match.code || null,
+              name: match.name || match.airportName || match.airport || match.label || null,
+              city: match.city || match.municipality || null,
+              country: match.country || match.countryName || match.country_code || null,
+              raw: match,
+            };
+          } catch {
+            setProxyOnline(false);
+            return null;
+          }
+        };
+        const geocodeByCityCountry = async (city, country, region) => {
+          const parts = [city, region, country].filter(part => typeof part === 'string' && part.trim().length > 0);
+          if (!parts.length) return null;
+          const search = parts.join(', ');
+          try {
+            const url = `https://geocoding-api.open-meteo.com/v1/search?count=1&language=en&format=json&name=${encodeURIComponent(search)}`;
+            const resp = await fetch(url);
+            if (!resp.ok) return null;
+            const data = await resp.json();
+            const result = (data.results || [])[0];
+            if (!result) return null;
+            const lat = Number(result.latitude);
+            const lon = Number(result.longitude);
+            if (Number.isFinite(lat) && Number.isFinite(lon)) {
+              return { lat, lon };
+            }
+          } catch (_) {
+            return null;
+          }
+          return null;
+        };
+        const applyLocation = (label, tz, inferred, lat, lon, meta = {}) => {
+          const inferredObj = inferred && typeof inferred === 'object'
+            ? inferred
+            : (typeof inferred === 'string' && inferred.trim()
+              ? { code: inferred.trim() }
+              : null);
+          let resolvedCode = null;
+          setLocationInfo(prev => {
+            const resolvedAirport = inferredObj || prev.airport || null;
+            resolvedCode =
+              (resolvedAirport && resolvedAirport.code) ||
+              inferredObj?.code ||
+              prev.inferredOrigin ||
+              prev.airport?.code ||
+              null;
+            const next = {
+              ...prev,
+              label,
+              tz: tz || prev.tz,
+              localTime: new Date(),
+              inferredOrigin: resolvedAirport?.code || prev.inferredOrigin || null,
+              lat: Number.isFinite(lat) ? lat : (typeof prev.lat === 'number' ? prev.lat : null),
+              lon: Number.isFinite(lon) ? lon : (typeof prev.lon === 'number' ? prev.lon : null),
+              city: meta.city ?? resolvedAirport?.city ?? prev.city ?? '',
+              country: meta.country ?? resolvedAirport?.country ?? prev.country ?? '',
+              method: meta.method ?? prev.method ?? 'UNKNOWN',
+              airport: resolvedAirport
+                ? {
+                    code: resolvedAirport.code || prev.airport?.code || null,
+                    name: resolvedAirport.name || prev.airport?.name || null,
+                    city: resolvedAirport.city || prev.airport?.city || null,
+                    country: resolvedAirport.country || prev.airport?.country || null,
+                  }
+                : null,
+            };
+            return next;
+          });
+          if (inferredObj?.code && typeof sessionStorage !== 'undefined') {
+            try { sessionStorage.setItem('inferred_origin', inferredObj.code); } catch {}
+          } else if (typeof inferred === 'string' && inferred && typeof sessionStorage !== 'undefined') {
+            try { sessionStorage.setItem('inferred_origin', inferred); } catch {}
+          }
+          if (resolvedCode && typeof resolvedCode === 'string') {
+            setDefaultOrigin(resolvedCode.trim().toUpperCase());
+            setLocationResolved(true);
+          }
+        };
+        const updateFromCoords = async (lat, lon) => {
+          try {
+            const resp = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
+            if (!resp.ok) throw new Error('reverse');
+            const data = await resp.json();
+            const locality = data.city || data.locality || data.principalSubdivision || '';
+            const country = data.countryName || data.countryCode || '';
+            const label = [locality, country].filter(Boolean).join(', ') || 'Current location';
+            let inferred = null;
+            if (Number.isFinite(lat) && Number.isFinite(lon)) {
+              inferred = await inferIata({ lat, lon });
+            }
+            applyLocation(
+              label,
+              Intl.DateTimeFormat().resolvedOptions().timeZone,
+              inferred,
+              lat,
+              lon,
+              {
+                method: 'navigator.geolocation.getCurrentPosition',
+                city: locality || '',
+                country: country || '',
+              }
+            );
+            return true;
+          } catch {
+            return false;
+          }
+        };
+        const fetchIpLocation = async () => {
+          try {
+            const resp = await fetch('https://ipapi.co/json/');
+            if (!resp.ok) throw new Error('geo');
+            const data = await resp.json();
+            const city = data.city;
+            const region = data.region;
+            const country = data.country_name || data.country;
+            const tz = data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const label = [city, region, country].filter(Boolean).join(', ') || 'Approximate location';
+            let lat = Number(data.latitude);
+            let lon = Number(data.longitude);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+              const geo = await geocodeByCityCountry(city, country, region);
+              if (geo) {
+                lat = geo.lat;
+                lon = geo.lon;
+              }
+            }
+            let inferred = null;
+            if (Number.isFinite(lat) && Number.isFinite(lon)) {
+              inferred = await inferIata({ lat, lon });
+            }
+            applyLocation(
+              label,
+              tz,
+              inferred,
+              lat,
+              lon,
+              {
+                method: 'https://ipapi.co',
+                city: city || '',
+                country: country || '',
+              }
+            );
+          } catch {
+            setLocationInfo(prev => ({ ...prev, method: 'FAILED' }));
+            applyLocation('Location unavailable', Intl.DateTimeFormat().resolvedOptions().timeZone, null, null, null, { method: 'FAILED' });
+          }
+        };
+        const resolveLocation = async () => {
+          if ('geolocation' in navigator) {
+            const success = await new Promise(resolve => {
+              navigator.geolocation.getCurrentPosition(
+                async pos => {
+                  const handled = await updateFromCoords(pos.coords.latitude, pos.coords.longitude);
+                  resolve(handled);
+                },
+                async (err) => {
+                  setLocationInfo(prev => ({
+                    ...prev,
+                    method: err && err.code === 1 ? 'DENIED' : 'FAILED',
+                  }));
+                  resolve(false);
+                },
+                { enableHighAccuracy: false, timeout: 5000, maximumAge: 600000 }
+              );
+            });
+            if (success) return;
+          }
+          await fetchIpLocation();
+        };
+        resolveLocation();
+      }, [lookupUrl]);
+      useEffect(() => {
+        if (defaultOrigin) {
+          setLocationResolved(true);
+          return;
+        }
+        const method = locationInfo?.method;
+        const airportCode = locationInfo?.airport?.code;
+        const inferred = locationInfo?.inferredOrigin;
+        if (airportCode) {
+          setDefaultOrigin(String(airportCode).toUpperCase());
+          setLocationResolved(true);
+          return;
+        }
+        if (inferred) {
+          setDefaultOrigin(String(inferred).toUpperCase());
+          setLocationResolved(true);
+          return;
+        }
+        if (method && method !== 'PENDING' && !defaultOrigin) {
+          setDefaultOrigin('FRA');
+          setLocationResolved(true);
+        }
+      }, [locationInfo, defaultOrigin]);
+      // ===== Log formatting tools =====
+      const tsStr = (iso) => `[${iso}]`;
+      const baseIndent = (iso) => ' '.repeat(tsStr(iso).length + 1); // after timestamp + one space
+      const isBulletLine = (line) => /^\s*(?:[-*+]|\d+[.)])\s+/.test(line);
+      const tokenizeBlocks = (raw) => {
+        const out = [];
+        const norm = String(raw || '').replace(/\r\n?/g, '\n');
+        const lines = norm.split('\n');
+        let i = 0;
+        while (i < lines.length) {
+          if (lines[i].trim() === '') { i++; continue; }
+          if (isBulletLine(lines[i])) {
+            const items = [];
+            while (i < lines.length && isBulletLine(lines[i])) {
+              const m = lines[i].match(/^\s*((?:[-*+])|(?:\d+[.)]))\s+(.*)$/);
+              const marker = m?.[1] || '-';
+              const text = (m?.[2] || '').trim();
+              items.push({ marker, text });
+              i++;
+            }
+            out.push({ type: 'list', items });
+          } else {
+            let buf = lines[i].trim();
+            i++;
+            while (i < lines.length && lines[i].trim() !== '' && !isBulletLine(lines[i])) {
+              buf += ' ' + lines[i].trim();
+              i++;
+            }
+            out.push({ type: 'text', text: buf });
+          }
+        }
+        return out;
+      };
+      const wrapWithIndent = (content, firstPrefix, contIndent) => {
+        const words = String(content || '').split(/\s+/).filter(Boolean);
+        const firstAvail = Math.max(10, MAX_COL - firstPrefix.length);
+        const nextAvail = Math.max(10, MAX_COL - contIndent.length);
+        const lines = [];
+        let cur = '';
+        let avail = firstAvail;
+        const pushLine = (prefix, text) => lines.push(prefix + text);
+        for (const w of words) {
+          if (cur.length === 0) {
+            if (w.length > avail) {
+              // hard-break very long token
+              pushLine(lines.length === 0 ? firstPrefix : contIndent, w.slice(0, avail));
+              let rest = w.slice(avail);
+              while (rest.length > 0) {
+                const take = Math.min(nextAvail, rest.length);
+                pushLine(contIndent, rest.slice(0, take));
+                rest = rest.slice(take);
+              }
+              avail = nextAvail; cur = '';
+            } else {
+              cur = w;
+            }
+          } else if (cur.length + 1 + w.length <= avail) {
+            cur += ' ' + w;
+          } else {
+            pushLine(lines.length === 0 ? firstPrefix : contIndent, cur);
+            cur = w;
+            avail = nextAvail;
+          }
+        }
+        if (cur) pushLine(lines.length === 0 ? firstPrefix : contIndent, cur);
+        return lines.join('\n');
+      };
+      const formatEntry = (m) => {
+        const iso = m.ts || new Date().toISOString();
+        const role = (m.role || 'assistant').toUpperCase();
+        const ts = tsStr(iso);
+        const head = `${ts} ${role}: `; // first line prefix
+        const indent = baseIndent(iso); // continuation lines start after timestamp + space
+        const blocks = tokenizeBlocks(m.text);
+        const out = [];
+        if (blocks.length === 0) {
+          out.push(head); // empty line with header only
+          return out.join('\n');
+        }
+        // Process blocks
+        let firstPiece = true;
+        for (const b of blocks) {
+          if (b.type === 'text') {
+            const prefix = firstPiece ? head : indent; // no role repeat after first line of entry
+            out.push(wrapWithIndent(b.text, prefix, indent));
+            firstPiece = false;
+          } else if (b.type === 'list') {
+            b.items.forEach((it, idx) => {
+              const bullet = String(it.marker);
+              const bulletPad = ' '.repeat(bullet.length + 1);
+              const firstPrefix = (firstPiece && idx === 0) ? (head + bullet + ' ') : (indent + bullet + ' ');
+              const cont = indent + bulletPad; // indent continuation under the text of list item
+              out.push(wrapWithIndent(it.text, firstPrefix, cont));
+              firstPiece = false;
+            });
+          }
+        }
+        return out.join('\n');
+      };
+      const buildHeader = () => [
+        `FLIGHT: ${flightNo.replace(' ', '')}`,
+        `LAT: ${Number.isFinite(locationInfo?.lat) ? locationInfo.lat.toFixed(6) : 'N/A'}, LON: ${Number.isFinite(locationInfo?.lon) ? locationInfo.lon.toFixed(6) : 'N/A'}`,
+        `CITY: ${locationInfo?.city || 'N/A'}, COUNTRY: ${locationInfo?.country || 'N/A'}`,
+        `AIR: ${
+          locationInfo?.airport?.code
+            ? `${locationInfo.airport.code}${locationInfo.airport.name ? ', ' + locationInfo.airport.name : ''}`
+            : 'N/A'
+        }`,
+        `METHOD: ${locationInfo?.method || 'UNKNOWN'}`,
+        `SESSION: ${sessionId}`,
+        `STARTED: ${startedAt.toISOString()}`,
+        '---'
+      ].join('\n');
+      const buildFullLog = () => {
+        const lines = [buildHeader()];
+        for (const m of messages) lines.push(formatEntry(m));
+        return lines.join('\n') + '\n';
+      };
+      const uploadTranscript = useCallback(async (currentMessages) => {
+        if (!TRANSCRIPT_UPLOAD_ENABLED) return;
+        if (!transcriptUrl) return;
+        if (!Array.isArray(currentMessages) || currentMessages.length === 0) return;
+        const already = transcriptSentRef.current;
+        if (currentMessages.length <= already) return;
+        const locationSnapshot = locationInfo && typeof locationInfo === 'object'
+          ? {
+            label: locationInfo.label || '',
+            tz: locationInfo.tz || '',
+            inferredOrigin: locationInfo?.inferredOrigin || '',
+          }
+          : null;
+        const payload = {
+          schemaVersion: TRANSCRIPT_SCHEMA_VERSION,
+          persona: FRONTEND_VARIANT,
+          variant: FRONTEND_VARIANT,
+          sessionId,
+          flight: flightNo,
+          startedAt: startedAt.toISOString(),
+          completedAt: new Date().toISOString(),
+          location: locationSnapshot,
+          messages: currentMessages.map(msg => ({
+            role: msg.role,
+            text: msg.text,
+            meta: msg.meta ?? null,
+            ts: msg.ts || new Date().toISOString(),
+          })),
+          extra: {
+            apiUrl,
+            frontend: FRONTEND_VARIANT,
+            proxyOnline,
+          },
+        };
+        try {
+          const res = await fetch(transcriptUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          transcriptSentRef.current = currentMessages.length;
+        } catch (error) {
+          console.warn('Transcript upload failed', error);
+        }
+      }, [transcriptUrl, flightNo, sessionId, startedAt, locationInfo, apiUrl, proxyOnline]);
+      const triggerSnitch = useCallback(async () => {
+        try {
+          const res = await fetch('/log.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'snitch' }),
+          });
+          if (!res.ok) {
+            console.warn('Snitch upload failed', res.status);
+            return;
+          }
+          const data = await res.json().catch(() => null);
+          if (!data || data.ok !== true) {
+            console.warn('Snitch upload incomplete', data);
+          }
+        } catch (error) {
+          console.warn('Snitch upload error', error);
+        }
+      }, []);
+      // ---- Append to server (/log.php) ----
+      const appendToServer = async () => {
+        try {
+          const filename = flightNo.replace(' ', '') + '.log';
+          const locationSnapshot = locationInfo && typeof locationInfo === 'object'
+            ? {
+                label: locationInfo.label || '',
+                tz: locationInfo.tz || '',
+                inferredOrigin: locationInfo?.inferredOrigin || '',
+              }
+            : null;
+          let chunk = '';
+          if (!headerSentRef.current) {
+            chunk += buildHeader() + '\n';
+            headerSentRef.current = true;
+          }
+          if (messages.length > savedCountRef.current) {
+            const news = messages.slice(savedCountRef.current).map(formatEntry).join('\n');
+            if (news) chunk += news + '\n';
+            savedCountRef.current = messages.length;
+          }
+          if (!chunk) {
+            await uploadTranscript(messages);
+            return;
+          }
+          await fetch('/log.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              filename,
+              chunk,
+              locationLabel: locationSnapshot?.label || '',
+              timeZone: locationSnapshot?.tz || '',
+              inferredOrigin: locationSnapshot?.inferredOrigin || '',
+            })
+          });
+          await uploadTranscript(messages);
+        } catch (e) {
+          console.warn('Server log append failed', e);
+        } finally {
+          if (snitchPendingRef.current) {
+            snitchPendingRef.current = false;
+            triggerSnitch();
+          }
+        }
+      };
+      // First write (header + initial assistant message)
+      useEffect(() => { appendToServer(); }, []);
+      const downloadLog = () => {
+        const blob = new Blob([buildFullLog()], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = flightNo.replace(' ', '') + '.log';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 0);
+      };
+      // ---- Chat send ----
+      const inputDisabled = busy || !locationResolved || !defaultOrigin;
+      const send = async () => {
+        const text = input.trim();
+        if (!text || inputDisabled) return;
+        if (Persona.setPersonaFromQuestionnaire) {
+          Persona.setPersonaFromQuestionnaire(text);
+        }
+        if (/\bsnitch\b/i.test(text)) {
+          snitchPendingRef.current = true;
+        }
+        setInput('');
+        const userMsg = { id: uid(), role: 'user', text, ts: new Date().toISOString() };
+        setMessages(m => [...m, userMsg]);
+        setBusy(true);
+        try {
+          let payload = { inputText: text, sessionId };
+          const labelText = locationInfo?.label;
+          if (labelText && !/detecting/i.test(labelText)) {
+            payload.locationLabel = labelText;
+          }
+          if (typeof locationInfo?.lat === 'number' && typeof locationInfo?.lon === 'number') {
+            payload.locationLat = locationInfo.lat;
+            payload.locationLon = locationInfo.lon;
+          }
+          if (defaultOrigin) {
+            payload.defaultOrigin = defaultOrigin;
+          }
+          if (locationInfo?.inferredOrigin) {
+            payload.inferredOrigin = locationInfo.inferredOrigin;
+          }
+          if (locationInfo?.airport && typeof locationInfo.airport === 'object') {
+            payload.locationAirport = locationInfo.airport;
+          }
+          if (Persona.attachPersona) {
+            payload = Persona.attachPersona(payload) || payload;
+            if (defaultOrigin) {
+              payload.defaultOrigin = defaultOrigin;
+            }
+            if (locationInfo?.inferredOrigin) {
+              payload.inferredOrigin = locationInfo.inferredOrigin;
+            }
+            if (locationInfo?.airport && typeof locationInfo.airport === 'object' && !payload.locationAirport) {
+              payload.locationAirport = locationInfo.airport;
+            }
+          }
+          const res = await fetch(apiUrl, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+          });
+          if (!res.ok) {
+            const httpError = new Error(`Proxy error ${res.status}`);
+            httpError.isHttpError = true;
+            throw httpError;
+          }
+          setProxyOnline(true);
+          const data = await res.json();
+          const reply = sanitizeAssistantText((data.text || data.responseText || data.answer || '').trim());
+          const toolResults = extractToolResults(data);
+          const cards = buildToolCards(toolResults);
+          const metaPayload = {};
+          if (data.cid) metaPayload.cid = data.cid;
+          if (cards.length) metaPayload.cards = cards;
+          const botMeta = Object.keys(metaPayload).length ? metaPayload : undefined;
+          // track last itinerary options for possible PDF generation
+          const parsedOptions = parseItineraryOptions(reply);
+          if (parsedOptions && parsedOptions.length) {
+            setLastItinerary(parsedOptions);
+          }
+          const botMsg = { id: uid(), role: 'assistant', text: reply || 'No text response.', meta: botMeta, ts: new Date().toISOString() };
+          setMessages(m => [...m, botMsg]);
+          // If user asked to confirm/hold/book OR explicitly asked for a PDF/download,
+          // generate a PDF from the latest known itinerary options.
+          const wantsPdf = /(confirm|confirmed|book|hold|pdf|download|itinerary|ticket|boarding\s*pass)/i.test(input);
+          // Use parsedOptions if it is a non-empty array; otherwise, fall back to lastItinerary.
+          const source = Array.isArray(parsedOptions) && parsedOptions.length > 0
+            ? parsedOptions
+            : lastItinerary;
+          if (wantsPdf && source && source.length) {
+            const blob = await generatePdf(source[0]);
+            if (blob) {
+              const url = URL.createObjectURL(blob);
+              const pdfMsg = { id: uid(), role: 'assistant', text: 'Your booking is confirmed. Download your itinerary (PDF):', meta: { pdfUrl: url, pdfName: 'itinerary.pdf' }, ts: new Date().toISOString() };
+              setMessages(m => [...m, pdfMsg]);
+            }
+          }
+        } catch (err) {
+          if (!err?.isHttpError) {
+            setProxyOnline(false);
+          }
+          const errMsg = { id: uid(), role: 'assistant', text: `Error: ${err.message}. Check proxy logs.`, meta: 'client', ts: new Date().toISOString() };
+          setMessages(m => [...m, errMsg]);
+        } finally {
+          setBusy(false);
+          setTimeout(appendToServer, 0);
+        }
+      };
+      const onKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          if (!inputDisabled) {
+            send();
+          }
+        }
+      };
+      return (
+        <div className="min-h-screen grid grid-rows-[auto,1fr,auto] bg-gradient-to-b from-lhBlueDark to-[#0b1229]">
+          <Header apiUrl={apiUrl} locationInfo={locationInfo} proxyOnline={proxyOnline} />
+          <div className="max-w-5xl mx-auto w-full px-4 pt-2">
+            <p className="text-xs text-red-300 text-center font-medium">For best results, please allow location sharing!</p>
+          </div>
+          <main className="max-w-5xl mx-auto w-full px-4 py-6">
+            <div ref={scrollRef} className="scroll-area h-[66vh] sm:h-[70vh] rounded-2xl bg-slate-900/60 border border-white/10 p-4 overflow-y-auto space-y-3">
+              {messages.map(m => (
+                <Bubble key={m.id} role={m.role} text={m.text} meta={m.meta} />
+              ))}
+              {busy && (
+                <div className="flex items-center gap-2 text-white/70 text-sm">
+                  <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lhYellow opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-lhYellow"></span></span>
+                  <span>Contacting agent...</span>
+                </div>
+              )}
+            </div>
+          </main>
+          {/* Flight number & download only */}
+          <section className="max-w-5xl mx-auto w-full px-4 pb-3">
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3">
+              <div className="flex items-center gap-[10px]">
+                <span className="text-xs uppercase tracking-wide text-white/60">Flight number</span>
+                <span className="inline-flex items-center gap-[10px] text-base font-semibold text-lhBlue bg-lhYellow px-3 py-1.5 rounded-xl">
+                  <img src="../img/imgbin_13fe065efcd84210aac1c831b51682b8.png" alt="Flight icon" className="h-5 w-auto" />
+                  {flightNo}
+                </span>
+              </div>
+              <button onClick={downloadLog} className="px-3 py-1.5 text-xs rounded-lg bg-white/10 hover:bg-white/15 border border-white/10">Download log</button>
+            </div>
+          </section>
+          <footer className="max-w-5xl mx-auto w-full px-4 pb-6">
+            <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-2 flex items-end gap-2">
+              <textarea
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder={locationResolved ? "Type your message...(Shift+Enter for newline)" : "Detecting your nearest departure airport..."}
+                disabled={inputDisabled}
+                className="flex-1 bg-transparent outline-none resize-none text-sm leading-6 placeholder:text-white/40 px-3 py-2 h-[52px] max-h-[160px] disabled:cursor-not-allowed disabled:opacity-60 disabled:placeholder:text-white/30"
+              />
+              <button onClick={send} disabled={inputDisabled} className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold bg-lhYellow text-lhBlue hover:brightness-95 active:brightness-90 disabled:opacity-60 disabled:cursor-not-allowed">
+                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor"><path d="M2 3l20 9-20 9 5-9-5-9zm7.2 9l-2.5 4.5L18 12 6.7 6.5 9.2 11H22" /></svg>
+                Send
+              </button>
+            </div>
+            {!locationResolved ? (
+              <p className="mt-2 text-xs text-white/60 px-1">
+                Detecting your nearest airport via device location or IP. Once resolved we will unlock chat; if unavailable, FRA will be used automatically.
+              </p>
+            ) : defaultOrigin ? (
+              <p className="mt-2 text-xs text-white/50 px-1">
+                Departure airport set to {defaultOrigin}.
+              </p>
+            ) : null}
+          </footer>
+          <div className="max-w-5xl mx-auto w-full px-4 pb-6 text-center">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-red-400">BETA test version!</p>
+          </div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<ChatApp />);
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-qZvrmS2ekKPF2mSznTQsxqPgnpkI4DNTlrdUmTzrDgektczlKNRRhy5X5AAOnx5S09ydFYWWNSfcEqDTTHgtNA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+ </body>
+
+ </html>
+
+
+
