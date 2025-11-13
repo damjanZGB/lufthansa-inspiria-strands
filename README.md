@@ -14,6 +14,7 @@ The existing **Paul/Gina/Bianca** React frontends remain the user entry point; t
 - ✅ Initial Strands workflow sketch with tool wiring and Bedrock model recommendations.
 - ✅ Destination Scout agent prompt, SearchAPI/Open-Meteo service + Lambda handler (`destination_scout/agent.py`, `destination_scout/service.py`, `destination_scout/handler.py`).
 - ✅ Draft Strands manifest describing supervisor routing (`config/supervisor.strands.json`).
+- ✅ Flight Search service + Lambda handler powered by SearchAPI Google Flights/Calendar (`flight_search/service.py`, `flight_search/handler.py`).
 - 🔜 Validate the Strands manifest via the Strands CLI and hook it into the deployment Lambdas.
 - 🔜 Mirror this folder into a dedicated repo (e.g., `github.com/LHGroup/strands-inspiria`).
 
@@ -54,3 +55,11 @@ pip install -e .[dev]
 - Built-in safeguards: in-memory cache (16 entries) and a 0.5 s pacing delay between SearchAPI calls to stay within quota.
 - The Supervisor consumes the cards via `conversation_state.destination_cards` (see `config/supervisor.strands.json`).
 - Local dry-run: `python scripts/run_destination_scout.py payload.json` (omit the argument to use the built-in sample payload).
+
+## Flight Search Service
+
+- Lambda entry point: `flight_search/handler.lambda_handler`.
+- Request contract: `FlightSearchRequest` (see `flight_search/service.py`) — expects `departure_id`, `arrival_id`, ISO `outbound_date`, optional `return_date`, traveller counts, cabin, plus optional `calendar_window` for monthly grids.
+- External calls: `https://www.searchapi.io/api/v1/search?engine=google_flights` (mandatory) and `engine=google_flights_calendar` when a window is provided.
+- Response bundle: raw SearchAPI payloads for flights and calendar plus metadata with the Google URLs.
+- Local dry-run: `python scripts/run_flight_search.py payload.json` (omit the argument to use the built-in sample payload).

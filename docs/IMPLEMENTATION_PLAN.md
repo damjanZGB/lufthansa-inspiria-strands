@@ -20,10 +20,10 @@
 
 ## Phase 2 – Flight Search Agent
 
-- Extract shared helpers from `aws/lambda_function.py` into `strands/shared/flight_utils`.
-- Create Python 3.12 Lambda (`agents/flight_search/handler.py`) that:
+- [ ] Extract shared helpers from `aws/lambda_function.py` into `strands/shared/flight_utils`.
+- [x] Create Python 3.12 Lambda (`flight_search/handler.py`) that:
   - Accepts a normalised itinerary payload.
-  - Calls Google Flights/Calendar/Explore via existing Render microservice.
+  - Calls SearchAPI Google Flights + Flights Calendar.
   - Returns itineraries + price calendar + alternatives.
 - Provide lightweight natural-language wrapping (Llama 3.1 70B Instruct) only if we need textual explanations; otherwise return JSON for Supervisor to narrate.
 
