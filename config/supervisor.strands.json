@@ -1,0 +1,121 @@
+{
+  "project": "lufthansa-inspiria-supervisor",
+  "profile": "dAisy_picker",
+  "version": "0.1.0",
+  "description": "Draft Strands manifest linking supervisor, flight search, and destination scout agents.",
+  "agents": {
+    "supervisor": {
+      "entrypoint": "supervisor.agent:build_agent",
+      "tools": ["http_request", "current_time"],
+      "memory_keys": ["persona", "default_origin", "session_summary"],
+      "guardrails": {
+        "personas": {
+          "paula": "docs/paula.md",
+          "gina": "docs/gina.md",
+          "bianca": "docs/bianca.md"
+        }
+      }
+    },
+    "flight_search": {
+      "entrypoint": "flight_search.agent:build_agent",
+      "tools": ["http_request"],
+      "memory_keys": []
+    }
+  },
+  "functions": {
+    "destination_scout": {
+      "handler": "destination_scout.handler:lambda_handler",
+      "runtime": "python3.12",
+      "timeout_seconds": 25,
+      "memory_keys": []
+    }
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "ingest_user_input",
+        "type": "agent",
+        "agent": "supervisor",
+        "goal": "Parse traveller input, capture persona, and persist origin/intent to memory."
+      },
+      {
+        "id": "normalize_context",
+        "type": "agent",
+        "agent": "supervisor",
+        "goal": "Call current_time + http_request to resolve IATA codes and time windows."
+      },
+      {
+        "id": "routing_decision",
+        "type": "policy",
+        "policy": "itinerary_completeness"
+      },
+      {
+        "id": "call_flight_search",
+        "type": "agent",
+        "agent": "flight_search",
+        "goal": "Delegate structured itineraries to Google Flights / Calendar via SearchAPI."
+      },
+      {
+        "id": "call_destination_scout",
+        "type": "function",
+        "function": "destination_scout",
+        "input": "conversation_state.normalized_inspiration_request",
+        "output_path": "conversation_state.destination_cards"
+      },
+      {
+        "id": "compose_response",
+        "type": "agent",
+        "agent": "supervisor",
+        "goal": "Blend persona tone with outputs from delegated agents and draft final answer."
+      }
+    ],
+    "edges": [
+      {
+        "from": "ingest_user_input",
+        "to": "normalize_context"
+      },
+      {
+        "from": "normalize_context",
+        "to": "routing_decision"
+      },
+      {
+        "from": "routing_decision",
+        "to": "call_flight_search",
+        "condition": "itinerary_completeness >= 0.7"
+      },
+      {
+        "from": "routing_decision",
+        "to": "call_destination_scout",
+        "condition": "itinerary_completeness < 0.7"
+      },
+      {
+        "from": "call_flight_search",
+        "to": "compose_response"
+      },
+      {
+        "from": "call_destination_scout",
+        "to": "compose_response"
+      }
+    ]
+  },
+  "policies": {
+    "itinerary_completeness": {
+      "kind": "score_threshold",
+      "input_path": "conversation_state.itinerary_completeness",
+      "threshold": 0.7,
+      "fallback": "call_destination_scout",
+      "persona_overrides": {
+        "gina": {
+          "questionnaire_required": true
+        }
+      }
+    }
+  },
+  "telemetry": {
+    "metrics": ["latencyMs", "toolInvocations"],
+    "tags": {
+      "product": "Inspiria",
+      "environment": "prototype"
+    }
+  }
+}

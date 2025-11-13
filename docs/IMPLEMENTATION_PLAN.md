@@ -12,7 +12,7 @@
 | Task | Owner | Notes |
 |------|-------|-------|
 | Create `supervisor` Lambda (TypeScript) | TBD | Handles Strands entry point + orchestrator logic |
-| Define Strands manifest (`config/supervisor.strands.json`) | TBD | Includes nodes, policies, guardrails |
+| Define Strands manifest (`config/supervisor.strands.json`) | TBD | Draft committed (routing + persona guardrails) |
 | Implement time/location normalisation | TBD | Uses Strands `current_time` tool + external public IATA API via `http_request` |
 | Session memory + persona routing | TBD | Use Strands memory store; map to UI persona |
 
@@ -29,11 +29,8 @@
 
 ## Phase 3 – Destination Scout Agent
 
-- Node.js 20 Lambda with:
-  - SerpAPI Google Travel Explore search.
-  - Open-Meteo weather snapshot for near-term dates.
-  - Optional Wikipedia summary fallback.
-- Add caching + throttling (½-second delay between SerpAPI calls).
+- [x] Python Strands agent factory and prompt scaffolding (`destination_scout/agent.py`).
+- [x] Python Lambda/service that calls SearchAPI `google_travel_explore` plus Open-Meteo to build structured cards (add caching + ½-second pacing between SearchAPI calls).
 - Return inspiration cards: `{destination, whyNow, weather, events, sources}`.
 
 ## Phase 4 – Strands Orchestration + Tooling
@@ -62,9 +59,9 @@
 
 ---
 
-**Dependencies:** SerpAPI key, Open-Meteo (no key), Bedrock model access (Claude, Llama, Nova), AWS Strands GA access.
+**Dependencies:** SearchAPI key, Open-Meteo (no key), Bedrock model access (Claude, Llama, Nova), AWS Strands GA access.
 
 **Risks/Mitigations:**
 - Strands availability – keep the existing Bedrock Agent path as fallback.
-- SerpAPI quota – add caching + degrade gracefully to Explore data we already store.
+- SearchAPI quota – add caching + degrade gracefully to Explore data we already store.
 - UI drift – reuse existing personas to avoid rebranding effort.

@@ -25,6 +25,11 @@ class Settings(BaseSettings):
         env="SEARCHAPI_KEY",
         description="SearchAPI bearer token used by http_request calls.",
     )
+    open_meteo_endpoint: HttpUrl = Field(
+        "https://api.open-meteo.com/v1/forecast",
+        env="OPEN_METEO_ENDPOINT",
+        description="Open-Meteo forecast endpoint for weather snapshots.",
+    )
 
     class Config:
         env_file = ".env"

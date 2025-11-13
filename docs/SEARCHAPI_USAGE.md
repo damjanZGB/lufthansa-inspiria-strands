@@ -6,7 +6,7 @@ All Inspiria agents must go directly to [SearchAPI](https://www.searchapi.io/doc
 ## Common Rules
 - Base URL: `https://www.searchapi.io/api/v1/search`
 - HTTP method: `GET`
-- Header: `Authorization: Bearer hq1ZEvCm7Ftu88ubxZMyHAPj`
+- Header: `Authorization: Bearer <SEARCHAPI_KEY>`
 - Default query params: `hl=en`, `gl=DE`, `currency=EUR`
 - Always include `included_airlines=LH,LX,OS,SN,EW,4Y,EN`
 
@@ -36,9 +36,10 @@ All Inspiria agents must go directly to [SearchAPI](https://www.searchapi.io/doc
 | `departure_id` | Origin airport |
 | `time_period` | Token such as `one_week_trip_in_march_2026` |
 | `travel_mode` | Always `flights_only` |
-| `arrival_id` | optional (if user fixed destination) |
+| `arrival_id` | optional (if destination is fixed) |
 | `interests` | optional, comma-delimited |
 | `adults` | optional |
+| `limit` | optional (set ≥24 when scouting destinations) |
 
 Agents should build these requests manually and send them through `http_request`. Capture the raw JSON
 response and pass it back to the supervisor so it can render Lufthansa-branded answers.

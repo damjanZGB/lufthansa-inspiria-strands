@@ -16,7 +16,7 @@
 |-------|---------|----------|-------|
 | Supervisor (`conductor`) | Session memory, reasoning, orchestration, final draft | Bedrock **Claude 3.5 Sonnet** (primary), fallback **Amazon Nova Lite** | AWS Strands built-ins (tool routing, memory, `current_time`), external IATA lookup (public REST API via `http_request`), Flight Search agent, Destination Scout agent |
 | Flight Search Agent (`flight_orca`) | Flight availability & price search | Bedrock **Llama 3.1 70B Instruct** (lightweight reasoning around tool outputs) | `google/flights/search`, `google/calendar/search`, `google/explore/search`, `derDrucker` |
-| Destination Scout Agent (`scout`) | Destination inspiration, weather, events | Bedrock **Nova Micro** (fast) + optional **Claude 3 Haiku** | SerpAPI (Google Travel Explore), Open-Meteo, Wikipedia/Tripadvisor scrapers |
+| Destination Scout Agent (`scout`) | Destination inspiration, weather, events | Bedrock **Nova Micro** (fast) + optional **Claude 3 Haiku** | SearchAPI (Google Travel Explore), Open-Meteo, Wikipedia/Tripadvisor scrapers |
 
 ### Data Flow
 
@@ -47,6 +47,8 @@
   - `default_origin`,
   - latest antiPhaser snapshot (already emitted by Lambda),
   - conversation summary for Destination Scout context.
+
+The initial manifest lives in `config/supervisor.strands.json` and encodes these nodes, personas, and routing thresholds.
 
 ## Suggested Repo Structure
 
@@ -80,7 +82,7 @@ Until we split this folder into a new repo, we keep the code colocated but deplo
 
 - **Google Flights / Calendar / Explore**: reuse `google-api.mjs` (Render) – no change required; just expose the base URL to the agents.
 - **Weather**: Open-Meteo (free) + fallback to Tomorrow.io if we need higher fidelity.
-- **Destination Knowledge**: SerpAPI’s `search.json` (Google Travel + News), Wikipedia summary API, Lufthansa editorial CMS (future).
+- **Destination Knowledge**: SearchAPI’s `google_travel_explore`, Wikipedia summary API, Lufthansa editorial CMS (future).
 - **Time Phrase Parsing**: handled inside the Supervisor model (Claude 3.5 Sonnet) plus the Strands `current_time` tool for temporal grounding—no antiPhaser dependency.
 - **IATA Lookup**: AviationStack (or similar public REST API) accessed through Strands `http_request`, cached per session.
 - **Guardrails**: Apply existing `daisy_guardrails.json` plus new persona-specific guardrails when we stand up the Strands project.
@@ -98,7 +100,7 @@ Until we split this folder into a new repo, we keep the code colocated but deplo
    - Extract flight helpers from `aws/lambda_function.py` into a pip-installable module.
    - Provide GET/POST wrappers for Google APIs.
 4. **Destination Scout agent**
-   - Node.js 20 Lambda hitting SerpAPI + Open-Meteo.
+   - Node.js 20 Lambda hitting SearchAPI + Open-Meteo.
    - Return structured JSON ready for Supervisor summarisation.
 5. **UI & Proxy integration**
    - Add new `/invoke-strands` endpoint in `proxy.mjs`.
@@ -109,8 +111,8 @@ Until we split this folder into a new repo, we keep the code colocated but deplo
 
 ## Open Questions
 
-- Do we need per-persona fine-tuning? For now, persona style stays in the UI + Supervisor prompt.
-- Should Destination Scout call Amadeus APIs for events? Not MVP, but we can add as new tools.
+- Persona tuning is required: Supervisor responses must follow the Paula, Gina, and Bianca blueprints stored in `docs/paula.md`, `docs/gina.md`, and `docs/bianca.md`.
+- Destination Scout relies exclusively on SearchAPI’s `google_travel_explore`; Amadeus integrations are explicitly out-of-scope.
 - How do we mirror Strands state into analytics? Plan: emit CloudWatch logs + push transcripts to the existing `s3escalator`.
 
 This document will evolve as we implement each milestone.
