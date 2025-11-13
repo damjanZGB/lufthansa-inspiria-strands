@@ -53,3 +53,4 @@ pip install -e .[dev]
 - External calls: `https://www.searchapi.io/api/v1/search?engine=google_travel_explore` (Authorization header from `SEARCHAPI_KEY`) plus Open-Meteo daily snapshots.
 - Built-in safeguards: in-memory cache (16 entries) and a 0.5 s pacing delay between SearchAPI calls to stay within quota.
 - The Supervisor consumes the cards via `conversation_state.destination_cards` (see `config/supervisor.strands.json`).
+- Local dry-run: `python scripts/run_destination_scout.py payload.json` (omit the argument to use the built-in sample payload).

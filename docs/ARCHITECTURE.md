@@ -112,7 +112,7 @@ Until we split this folder into a new repo, we keep the code colocated but deplo
 ## Open Questions
 
 - Persona tuning is required: Supervisor responses must follow the Paula, Gina, and Bianca blueprints stored in `docs/paula.md`, `docs/gina.md`, and `docs/bianca.md`.
-- Destination Scout relies exclusively on SearchAPI’s `google_travel_explore`; Amadeus integrations are explicitly out-of-scope.
+- Destination Scout relies exclusively on SearchAPI’s `google_travel_explore`; no other flight/event APIs are planned for this phase.
 - How do we mirror Strands state into analytics? Plan: emit CloudWatch logs + push transcripts to the existing `s3escalator`.
 
 This document will evolve as we implement each milestone.
