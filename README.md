@@ -30,3 +30,11 @@ See the docs for the detailed breakdown. To run locally, copy `.env.example` to 
 ```bash
 pip install -r requirements.txt
 ```
+
+For contributor tooling (Ruff, Black, pytest), install the dev extras:
+
+```bash
+pip install -r requirements-dev.txt
+# or
+pip install -e .[dev]
+```
