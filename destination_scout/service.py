@@ -6,7 +6,7 @@ import logging
 import time
 from collections import OrderedDict
 from datetime import date, timedelta
-from typing import Any
+from typing import Any, Mapping
 
 import httpx
 from pydantic import BaseModel, Field, PositiveInt, conint, model_validator
@@ -239,7 +239,7 @@ class DestinationScoutService:
         metadata = {
             "time_period_token": request.time_window.token,
             "result_count": len(candidates),
-            "search_url": payload.get("search_metadata", {}).get("google_url"),
+            "search_url": payload.get("search_metadata", {}).get("json_url"),
         }
         remaining = max(len(candidates) - len(cards), 0)
         return DestinationScoutResponse(
@@ -298,8 +298,8 @@ class DestinationScoutService:
         )
         events = _normalise_events(candidate.get("top_sights") or candidate.get("events") or [])
         coords = candidate.get("coordinates") or candidate.get("geo") or {}
-        latitude = _coerce_float(coords.get("latitude"))
-        longitude = _coerce_float(coords.get("longitude"))
+        latitude = _coerce_float(coords.get("latitude") if isinstance(coords, Mapping) else (coords[0] if isinstance(coords, list) and coords else None))
+        longitude = _coerce_float(coords.get("longitude") if isinstance(coords, Mapping) else (coords[1] if isinstance(coords, list) and len(coords) > 1 else None))
 
         weather: WeatherSummary | None = None
         if request.include_weather and latitude is not None and longitude is not None:
