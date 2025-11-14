@@ -63,3 +63,21 @@ def test_call_flight_search_handles_validation_error(monkeypatch) -> None:
     result = supervisor_tools.call_flight_search({"departure_id": "FRA"})
 
     assert result["status"] == "error"
+
+
+def test_call_weather_snapshot_returns_summary(monkeypatch) -> None:
+    def fake_fetch(**_: object) -> dict[str, object]:
+        return {"daily": {"temperature_2m_max": [20], "temperature_2m_min": [10]}}
+
+    monkeypatch.setattr(supervisor_tools, "fetch_weather_snapshot", fake_fetch)
+    result = supervisor_tools.call_weather_snapshot(
+        {
+            "latitude": 48.1,
+            "longitude": 11.6,
+            "start_date": "2025-11-15",
+            "end_date": "2025-11-18",
+        }
+    )
+
+    assert result["status"] == "success"
+    assert "summary" in result["data"]

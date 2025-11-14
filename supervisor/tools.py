@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import date, timedelta
 from typing import Any
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from strands import tool
 
 from config.settings import get_settings
@@ -21,6 +22,7 @@ from flight_search.service import (
     FlightSearchService,
     SearchAPIClient as FlightSearchClient,
 )
+from supervisor.weather import fetch_weather_snapshot, summarise_weather
 
 _flight_service: FlightSearchService | None = None
 _destination_service: DestinationScoutService | None = None
@@ -99,4 +101,45 @@ def call_destination_scout(request: dict[str, Any]) -> dict[str, Any]:
     return {"status": "success", "data": response.model_dump()}
 
 
-__all__ = ["call_destination_scout", "call_flight_search"]
+class WeatherRequest(BaseModel):
+    latitude: float
+    longitude: float
+    start_date: date
+    end_date: date
+
+
+@tool
+def call_weather_snapshot(request: dict[str, Any]) -> dict[str, Any]:
+    """
+    Fetch a weather snapshot for the supplied coordinates and trip window using Open-Meteo.
+
+    Args:
+        request: {latitude, longitude, start_date, end_date}.
+    Returns:
+        {status, data: {summary, raw}} where summary is a concise weather string.
+    """
+
+    try:
+        parsed = WeatherRequest.model_validate(request)
+    except ValidationError as exc:
+        return _error(f"Invalid WeatherRequest payload: {exc}")
+
+    horizon = date.today() + timedelta(days=16)
+    if parsed.start_date > horizon or parsed.end_date > horizon:
+        return _error("Open-Meteo only provides forecasts up to ~16 days ahead.")
+
+    try:
+        payload = fetch_weather_snapshot(
+            latitude=parsed.latitude,
+            longitude=parsed.longitude,
+            start_date=parsed.start_date,
+            end_date=parsed.end_date,
+        )
+    except Exception as exc:  # pragma: no cover - network errors
+        return _error(f"Open-Meteo lookup failed: {exc}")
+
+    summary = summarise_weather(payload) or "Weather snapshot unavailable"
+    return {"status": "success", "data": {"summary": summary, "payload": payload}}
+
+
+__all__ = ["call_destination_scout", "call_flight_search", "call_weather_snapshot"]
