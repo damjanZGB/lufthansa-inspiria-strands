@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from strands import Agent
 from strands.models import BedrockModel
-from strands_tools import http_request
+from strands.tools import http_request
 
 from config.settings import get_settings
 from shared.prompts import DESTINATION_SCOUT_PROMPT_TEMPLATE

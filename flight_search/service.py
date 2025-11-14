@@ -122,6 +122,7 @@ class SearchAPIClient:
 
     def _perform_request(self, params: dict[str, Any], engine: str) -> dict[str, Any]:
         headers = {"Authorization": f"Bearer {self._api_key}"}
+        params = {**params, "api_key": self._api_key}
         try:
             with httpx.Client(timeout=self._timeout, transport=self._transport) as client:
                 response = client.get(self._base_url, params=params, headers=headers)

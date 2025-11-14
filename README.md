@@ -73,15 +73,11 @@ pip install -e .[dev]
 
 ## Local CLI Chat
 
-Need to send ad-hoc prompts without crafting JSON payloads? Load your `.env` (for `SEARCHAPI_KEY`) and run:
+Need to send ad-hoc prompts without crafting JSON payloads? Copy `.env.example` to `.env`, set `SEARCHAPI_KEY`, and run:
 
 ```bash
-# Supervisor persona chat
-python scripts/chat_agent.py --agent supervisor --persona paula
-
-# Flight Search or Destination Scout directly
-python scripts/chat_agent.py --agent flight_search
-python scripts/chat_agent.py --agent destination_scout
+# Supervisor persona chat (sub-agents stay hidden)
+python scripts/chat_agent.py --persona paula
 ```
 
-The script mirrors Strands’ personal-assistant samples: it toggles `STRANDS_TOOL_CONSOLE_MODE`, keeps the agent session in memory, and streams responses for whichever agent you select.
+The script mirrors Strands’ personal-assistant samples: it toggles `STRANDS_TOOL_CONSOLE_MODE`, keeps session state in memory, and streams responses from the supervisor while it quietly delegates to Flight Search or Destination Scout tools.

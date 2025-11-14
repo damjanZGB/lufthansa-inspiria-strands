@@ -1,26 +1,43 @@
 from __future__ import annotations
 
-import pytest
+import types
 
-from scripts.chat_agent import AGENT_FACTORIES, parse_args, resolve_agent_factory
-
-
-def test_resolve_agent_factory_is_case_insensitive() -> None:
-    factory = resolve_agent_factory("Supervisor")
-    assert callable(factory)
+from scripts import chat_agent
 
 
-def test_resolve_agent_factory_rejects_unknown_agent() -> None:
-    with pytest.raises(ValueError):
-        resolve_agent_factory("unknown")
+def test_parse_args_defaults_to_none() -> None:
+    args = chat_agent.parse_args([])
+    assert args.persona is None
 
 
-def test_parse_args_defaults_to_supervisor() -> None:
-    args = parse_args([])
-    assert args.agent == "supervisor"
-    assert set(args.__dict__) == {"agent", "persona"}
+class DummyAgent:
+    def __init__(self) -> None:
+        self.persona = None
+        self.state = types.SimpleNamespace(set=self._set_state)
+
+    def _set_state(self, key: str, value: str) -> None:
+        setattr(self, key, value)
 
 
-def test_agent_registry_has_expected_members() -> None:
-    expected = {"supervisor", "flight_search", "destination_scout"}
-    assert expected.issubset(set(AGENT_FACTORIES))
+def test_build_agent_seeds_persona(monkeypatch) -> None:
+    dummy = DummyAgent()
+
+    def fake_builder():
+        return dummy
+
+    monkeypatch.setattr(chat_agent, "build_supervisor_agent", fake_builder)
+
+    agent = chat_agent.build_agent("Gina")
+    assert agent.persona == "gina"
+
+
+def test_build_agent_handles_missing_persona(monkeypatch) -> None:
+    dummy = DummyAgent()
+
+    def fake_builder():
+        return dummy
+
+    monkeypatch.setattr(chat_agent, "build_supervisor_agent", fake_builder)
+
+    agent = chat_agent.build_agent(None)
+    assert agent.persona is None

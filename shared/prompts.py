@@ -29,6 +29,19 @@ Engine-specific parameters:
    Always convert SearchAPI responses into Lufthansa Group compliant inspiration cards.
 """
 
+SUPERVISOR_DELEGATE_INSTRUCTIONS = """\
+Dedicated delegate tools available to you:
+1. call_flight_search(request_dict)
+   - request_dict must match the FlightSearchRequest schema (departure_id, arrival_id, outbound_date,
+     optional return_date, adults, travel_class, stops, included_airlines, calendar_window).
+   - Returns: {{status, data: {{flights, calendar, metadata}}}} via SearchAPI Google Flights/Calendar.
+2. call_destination_scout(request_dict)
+   - request_dict must match DestinationScoutRequest (departure_id, time_window.token [+ optional start/end],
+     optional arrival_ids/interests/max_cards/forecast_days).
+   - Returns: {{status, data: {{cards, remaining_candidates, search_metadata}}}} via SearchAPI Explore + Open-Meteo.
+Always read the JSON payloads and weave them into your response. If status=error, adjust the request and retry.
+"""
+
 SUPERVISOR_PROMPT_TEMPLATE = (
     "You are the Lufthansa Inspiria supervisor agent. "
     "Delegate work smartly, gather only verified data, "
@@ -38,6 +51,8 @@ SUPERVISOR_PROMPT_TEMPLATE = (
     "live in conversation_state.destination_cards. Always read from those stores "
     "before drafting answers so you can cite actual data. "
     + BASE_INSTRUCTIONS
+    + "\n\n"
+    + SUPERVISOR_DELEGATE_INSTRUCTIONS
     + "\n\nPersona reference (Paula, Gina, Bianca):\n"
     + PERSONA_PROMPT_BLOCK
 )

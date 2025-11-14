@@ -4,12 +4,18 @@ from __future__ import annotations
 
 from strands import Agent
 from strands.models import BedrockModel
-from strands_tools import http_request
+from strands.tools import PythonAgentTool
+from strands_tools import current_time, http_request
 
 from config.settings import get_settings
 from shared.prompts import SUPERVISOR_PROMPT_TEMPLATE
+from supervisor.tools import call_destination_scout, call_flight_search
 
-HTTP_REQUEST_TOOL = http_request.http_request
+HTTP_REQUEST_TOOL = PythonAgentTool(
+    "http_request",
+    http_request.TOOL_SPEC,
+    http_request.http_request,
+)
 
 
 def build_agent() -> Agent:
@@ -22,8 +28,10 @@ def build_agent() -> Agent:
     )
     model = BedrockModel(
         model_id=settings.bedrock_model_id,
-        region=settings.bedrock_region,
+        region_name=settings.bedrock_region,
         temperature=settings.bedrock_temperature,
         max_tokens=settings.bedrock_max_tokens,
     )
-    return Agent(model=model, system_prompt=prompt, tools=[HTTP_REQUEST_TOOL])
+    tools = [HTTP_REQUEST_TOOL, CURRENT_TIME_TOOL, call_flight_search, call_destination_scout]
+    return Agent(model=model, system_prompt=prompt, tools=tools)
+CURRENT_TIME_TOOL = current_time.current_time
