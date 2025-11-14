@@ -112,7 +112,7 @@ class SearchAPIClient:
             "gl": "DE",
             "hl": "en-GB",
             "currency": "EUR",
-            "included_airlines": "LH,LX,OS,SN,EW,4Y,EN",
+            "alliance": "STAR_ALLIANCE",
         }
         if request.arrival_ids:
             params["arrival_id"] = request.arrival_ids[0]
