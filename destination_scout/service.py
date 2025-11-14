@@ -103,7 +103,7 @@ class SearchAPIClient:
         params: dict[str, Any] = {
             "engine": "google_travel_explore",
             "departure_id": request.departure_id,
-            "time_period": request.time_window.token,
+            "time_period": _build_time_period(request.time_window),
             "travel_mode": "flights_only",
             "adults": request.adults,
             "limit": request.limit,
@@ -357,6 +357,58 @@ class DestinationScoutService:
         self._cache.move_to_end(key)
         if len(self._cache) > self._cache_size:
             self._cache.popitem(last=False)
+
+
+def _build_time_period(time_window: TimeWindow, *, today: date | None = None) -> str:
+    today = today or date.today()
+    start = time_window.start_date
+    end = time_window.end_date
+    if start and end:
+        return f"{start.isoformat()}..{end.isoformat()}"
+    if start:
+        return start.isoformat()
+    token = (time_window.token or "").strip()
+    normalized = _normalize_time_period_token(token, today=today)
+    return normalized or "one_week_trip_in_the_next_six_months"
+
+
+def _normalize_time_period_token(token: str, *, today: date) -> str | None:
+    lowered = token.lower()
+    static_tokens = {
+        "one_week_trip_in_the_next_six_months",
+        "two_week_trip_in_the_next_six_months",
+        "weekend_trip_in_the_next_six_months",
+        "trip_in_the_next_six_months",
+    }
+    if lowered in static_tokens:
+        return lowered
+
+    for prefix in (
+        "one_week_trip_in_",
+        "two_week_trip_in_",
+        "weekend_in_",
+        "trip_in_",
+    ):
+        if lowered.startswith(prefix):
+            month_candidate = lowered[len(prefix) :]
+            if month_candidate in _allowed_month_tokens(today):
+                return lowered
+            return None
+    return None
+
+
+def _allowed_month_tokens(today: date) -> set[str]:
+    tokens: set[str] = set()
+    year = today.year
+    month = today.month
+    for _ in range(6):
+        month_name = date(year, month, 1).strftime("%B").lower()
+        tokens.add(month_name)
+        month += 1
+        if month > 12:
+            month = 1
+            year += 1
+    return tokens
 
 
 def _normalise_events(raw_events: Any) -> list[str]:

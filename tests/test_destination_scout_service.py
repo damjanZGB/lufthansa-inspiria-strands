@@ -6,11 +6,12 @@ from typing import Any
 import httpx
 
 from destination_scout.service import (
+    TimeWindow,
     DestinationScoutRequest,
     DestinationScoutService,
     OpenMeteoClient,
     SearchAPIClient,
-    TimeWindow,
+    _build_time_period,
 )
 
 
@@ -159,3 +160,24 @@ def test_searchapi_responses_are_cached_between_invocations() -> None:
     service.generate_cards(request)
 
     assert call_counter["count"] == 1
+
+
+def test_build_time_period_prefers_custom_dates_when_present() -> None:
+    window = TimeWindow(
+        token="one_week_trip_in_august",
+        start_date=date(2026, 8, 1),
+        end_date=date(2026, 8, 7),
+    )
+    assert _build_time_period(window, today=date(2026, 1, 15)) == "2026-08-01..2026-08-07"
+
+
+def test_build_time_period_rejects_months_outside_six_month_window() -> None:
+    window = TimeWindow(token="one_week_trip_in_december")
+    token = _build_time_period(window, today=date(2026, 1, 15))
+    assert token == "one_week_trip_in_the_next_six_months"
+
+
+def test_build_time_period_accepts_valid_month_tokens() -> None:
+    window = TimeWindow(token="weekend_in_march")
+    token = _build_time_period(window, today=date(2026, 1, 15))
+    assert token == "weekend_in_march"

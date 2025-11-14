@@ -38,6 +38,11 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("OPEN_METEO_ENDPOINT"),
         description="Open-Meteo forecast endpoint for weather snapshots.",
     )
+    default_timezone: str = Field(
+        "UTC",
+        validation_alias=AliasChoices("DEFAULT_TIMEZONE"),
+        description="Timezone used for Open-Meteo requests when not specified.",
+    )
 
 
 @lru_cache

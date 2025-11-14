@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+from datetime import date, datetime
 from typing import Any
 
-from datetime import datetime
+import httpx
 
+from config.settings import get_settings
 from shared.flight_utils import normalise_price
+from supervisor.weather import fetch_weather_snapshot, summarise_weather
 
 
 def format_destination_cards(cards: Iterable[dict[str, Any]]) -> str:
@@ -80,19 +83,13 @@ def build_destination_weather_report(conversation_state: Mapping[str, Any]) -> s
     matched_card = _match_destination_card(cards, arrival_code)
     if not matched_card:
         return None
-    weather = matched_card.get("weather")
-    if not isinstance(weather, Mapping):
-        return None
     trip_window = _extract_trip_window(target_flight)
     if not trip_window:
         return None
     destination = matched_card.get("destination") or arrival_code or "Destination"
-    headline = weather.get("headline") or "Weather snapshot unavailable"
+    weather_headline = _resolve_weather_headline(matched_card, trip_window)
 
-    return (
-        "Destination Weather\n"
-        f"{destination} ({trip_window[0]} to {trip_window[1]}): {headline}"
-    )
+    return f"Destination Weather\n{destination} ({trip_window[0]} to {trip_window[1]}): {weather_headline}"
 
 
 def _collect_flights(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -262,6 +259,33 @@ def _extract_trip_window(flight: dict[str, Any]) -> tuple[str, str] | None:
     if not depart or not return_arrival:
         return None
     return depart, return_arrival
+
+
+def _resolve_weather_headline(card: dict[str, Any], trip_window: tuple[str, str]) -> str:
+    weather = card.get("weather")
+    if isinstance(weather, Mapping):
+        headline = weather.get("headline")
+        if headline:
+            return str(headline)
+
+    metadata = card.get("metadata") or {}
+    coords = metadata.get("coordinates") or card.get("coordinates") or {}
+    latitude = _coerce_float(coords.get("latitude"))
+    longitude = _coerce_float(coords.get("longitude"))
+    if latitude is None or longitude is None:
+        return "Weather snapshot unavailable"
+
+    try:
+        payload = fetch_weather_snapshot(
+            latitude=latitude,
+            longitude=longitude,
+            start_date=date.fromisoformat(trip_window[0]),
+            end_date=date.fromisoformat(trip_window[1]),
+        )
+        summary = summarise_weather(payload)
+        return summary or "Weather snapshot unavailable"
+    except httpx.HTTPError:
+        return "Weather snapshot unavailable"
 
 
 __all__ = ["format_destination_cards", "format_flight_summary"]
