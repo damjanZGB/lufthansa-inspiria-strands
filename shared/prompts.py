@@ -116,7 +116,7 @@ SearchAPI (Google Travel Explore) contract:
 - headers: {{"Authorization": "Bearer {searchapi_key}"}}
 - query params: engine=google_travel_explore, departure_id, time_period,
   travel_mode=flights_only, hl=en, gl=DE, currency=EUR,
-  included_airlines=LH,LX,OS,SN,EW,4Y,EN, adults>=1, limit>=24.
+  included_airlines=STAR_ALLIANCE (use `STAR_ALLIANCE` to keep results within the Lufthansa Group network), adults>=1, limit>=24.
 - Optional query params: arrival_id (when traveller picks a destination),
   interests (only: popular, outdoors, beaches, museums, history, skiing). Map traveller phrases such as “snowy”, “powder”
   or “mountain getaway” to the closest supported keyword (snow → skiing, mountain → outdoors) before calling.

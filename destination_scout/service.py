@@ -123,7 +123,7 @@ class SearchAPIClient:
             "gl": "DE",
             "hl": "en-GB",
             "currency": "EUR",
-            "alliance": "STAR_ALLIANCE",
+            "included_airlines": "STAR_ALLIANCE",
         }
         if request.arrival_ids:
             params["arrival_id"] = request.arrival_ids[0]
