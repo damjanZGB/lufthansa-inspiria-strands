@@ -43,7 +43,7 @@ class DestinationScoutRequest(BaseModel):
     limit: PositiveInt = 24
     max_cards: PositiveInt = 3
     include_weather: bool = True
-    forecast_days: conint(ge=1, le=16) = 7
+    forecast_days: int = Field(7, ge=1, le=16)
 
     @model_validator(mode="after")
     def clamp_max_cards(self) -> DestinationScoutRequest:
@@ -118,7 +118,6 @@ class SearchAPIClient:
             params["interests"] = ",".join(request.interests)
 
         headers = {"Authorization": f"Bearer {self._api_key}"}
-        params["api_key"] = self._api_key
         try:
             with httpx.Client(timeout=self._timeout, transport=self._transport) as client:
                 response = client.get(self._base_url, params=params, headers=headers)
