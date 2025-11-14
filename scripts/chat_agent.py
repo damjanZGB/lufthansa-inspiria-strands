@@ -23,6 +23,12 @@ from strands import Agent
 
 from supervisor.agent import build_agent as build_supervisor_agent
 
+PERSONA_OPENERS = {
+    "paula": "Hi, I am Paula. Here's what I gathered for you:",
+    "gina": "Gina here — tailored insights coming your way:",
+    "bianca": "Bianca speaking with a spark of inspiration:",
+}
+
 
 def parse_args(args: list[str] | None = None) -> argparse.Namespace:
     """Return CLI arguments."""
@@ -52,13 +58,16 @@ def build_agent(persona: str | None = None) -> Agent:
     return agent
 
 
-def interactive_loop(agent: Agent) -> None:
+def interactive_loop(agent: Agent, persona: str | None = None) -> None:
     """Prompt the user for input until they exit."""
 
     print("--------------------------------------------------------------------")
     print("Connected to the Lufthansa Inspiria supervisor.")
     print("Type messages to interact, or 'exit' to quit.")
     print("--------------------------------------------------------------------\n")
+
+    intro_needed = bool(persona and persona.lower() in PERSONA_OPENERS)
+    persona_key = persona.lower() if persona else None
 
     while True:
         try:
@@ -72,6 +81,10 @@ def interactive_loop(agent: Agent) -> None:
         if user_input.lower() in {"exit", "quit"}:
             print("Goodbye 👋")
             break
+
+        if intro_needed:
+            print(f"\n{PERSONA_OPENERS[persona_key]}\n")
+            intro_needed = False
 
         try:
             response = agent(user_input)
@@ -96,7 +109,7 @@ def main(raw_args: list[str] | None = None) -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     agent = build_agent(args.persona)
-    interactive_loop(agent)
+    interactive_loop(agent, args.persona)
 
 
 if __name__ == "__main__":
