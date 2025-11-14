@@ -6,6 +6,38 @@ import re
 from collections.abc import Sequence
 
 LH_GROUP_AIRLINES: tuple[str, ...] = ("LH", "LX", "OS", "SN", "EW", "4Y", "EN")
+STAR_ALLIANCE_AIRLINES: tuple[str, ...] = (
+    "A3",
+    "AC",
+    "AD",
+    "AI",
+    "AV",
+    "BR",
+    "CA",
+    "CM",
+    "ET",
+    "FK",
+    "JP",
+    "LO",
+    "LH",
+    "LX",
+    "MS",
+    "NH",
+    "NZ",
+    "OS",
+    "OU",
+    "OZ",
+    "PK",
+    "SA",
+    "SK",
+    "SN",
+    "SQ",
+    "TA",
+    "TK",
+    "TP",
+    "UA",
+    "ZH",
+)
 _PRICE_PATTERN = re.compile(r"([0-9]+(?:[.,][0-9]+)?)")
 
 
@@ -27,6 +59,12 @@ def airlines_csv(extra: Sequence[str] | None = None) -> str:
     """Return comma-separated airline codes for SearchAPI queries."""
 
     return ",".join(lhg_airlines_list(extra))
+
+
+def star_alliance_list() -> list[str]:
+    """Return full Star Alliance carrier codes."""
+
+    return list(dict.fromkeys(STAR_ALLIANCE_AIRLINES))
 
 
 def normalise_price(

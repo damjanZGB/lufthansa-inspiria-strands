@@ -90,3 +90,37 @@ def test_flight_service_handles_calendar_failure_gracefully() -> None:
     response = service.search(request)
 
     assert response.calendar is None
+
+
+def test_flight_service_expands_to_star_alliance_when_empty() -> None:
+    counter = {"calls": 0}
+
+    def flight_handler(_request: httpx.Request) -> httpx.Response:
+        if counter["calls"] == 0:
+            counter["calls"] += 1
+            return httpx.Response(200, json={"best_flights": [], "other_flights": []})
+        return httpx.Response(
+            200,
+            json={
+                "best_flights": [{"itinerary": "LX400", "price": "€310"}],
+                "search_metadata": {"google_url": "https://www.google.com/flights"},
+            },
+        )
+
+    flights_client = SearchAPIClient(
+        base_url="https://example.com/search",
+        api_key="token",
+        transport=httpx.MockTransport(flight_handler),
+    )
+    service = FlightSearchService(flights_client)
+
+    request = FlightSearchRequest(
+        departure_id="ZRH",
+        arrival_id="EWR",
+        outbound_date=date(2026, 7, 2),
+    )
+
+    response = service.search(request)
+
+    assert response.flights["best_flights"][0]["itinerary"] == "LX400"
+    assert response.metadata["search_scope"] == "star_alliance"

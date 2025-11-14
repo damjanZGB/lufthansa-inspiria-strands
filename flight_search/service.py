@@ -9,11 +9,7 @@ from typing import Any, Literal
 import httpx
 from pydantic import BaseModel, Field, PositiveInt, conint, model_validator
 
-from shared.flight_utils import (
-    LH_GROUP_AIRLINES,
-    airlines_csv,
-    extract_best_price,
-)
+from shared.flight_utils import LH_GROUP_AIRLINES, airlines_csv, extract_best_price, star_alliance_list
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +145,11 @@ class FlightSearchService:
 
     def search(self, request: FlightSearchRequest) -> FlightSearchResponse:
         flights_payload = self._flights_client.flights(request)
+        search_scope = "lh_group"
+        if _is_empty_payload(flights_payload):
+            fallback_request = request.model_copy(update={"included_airlines": star_alliance_list()})
+            flights_payload = self._flights_client.flights(fallback_request)
+            search_scope = "star_alliance"
         calendar_payload = None
         if request.calendar_window:
             try:
@@ -167,12 +168,21 @@ class FlightSearchService:
                 flights_payload,
                 currency=request.currency,
             ),
+            "search_scope": search_scope,
         }
         return FlightSearchResponse(
             flights=flights_payload,
             calendar=calendar_payload,
             metadata={k: v for k, v in metadata.items() if v},
         )
+
+
+def _is_empty_payload(payload: dict[str, Any]) -> bool:
+    for key in ("best_flights", "other_flights"):
+        bucket = payload.get(key)
+        if isinstance(bucket, list) and bucket:
+            return False
+    return True
 
 
 __all__ = [

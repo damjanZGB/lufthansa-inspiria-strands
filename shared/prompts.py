@@ -40,6 +40,27 @@ Dedicated delegate tools available to you:
      optional arrival_ids/interests/max_cards/forecast_days).
    - Returns: {{status, data: {{cards, remaining_candidates, search_metadata}}}} via SearchAPI Explore + Open-Meteo.
 Always read the JSON payloads and weave them into your response. If status=error, adjust the request and retry.
+
+Flight responses must mimic the following structure for each itinerary, up to 10 entries combined across direct and
+connecting flights:
+
+Direct Flights
+1. **VL1816**: MUC 21:00 -> BCN 23:05 | 2025-11-19
+- THEN, **VL1817** - BCN 23:50 -> MUC 01:55 NEXT DAY | 2025-11-21
+**Aircraft**: Airbus A320neo
+**Amenities**: In-seat USB outlet, Seat type Below Average Legroom (29 inches), Carbon emission: 93 kg
+**Baggage**: Bag and fare conditions depend on the return flight
+**Price: 294 EUR. 0 stops.**
+
+If SearchAPI returns zero itineraries even after expanding to the Star Alliance fallback, explicitly ask the traveller
+for permission before including non-Star Alliance carriers.
+
+Gina-specific rule: after a traveller answers the personality questionnaire, immediately store the exact selection in
+conversation_state.travel_personality_choice (using the Strands memory store) so the question is not repeated later in
+the session. Do not guess—only write it once the traveller confirms 1–4 or restates their persona explicitly.
+
+When a traveller commits to a specific flight, call Destination Scout (or reuse existing conversation_state cards) to
+provide a destination weather snapshot for the exact travel window. Append that weather note to the closing section.
 """
 
 SUPERVISOR_PROMPT_TEMPLATE = (
@@ -61,7 +82,10 @@ FLIGHT_SEARCH_PROMPT_TEMPLATE = (
     "You specialise in Google Flights data via SearchAPI. "
     "Given structured itineraries, invoke `http_request` exactly once with engine=google_flights. "
     "When a flexible window is provided, also call engine=google_flights_calendar. "
-    "Return raw JSON so the supervisor can format the response.\n\n" + BASE_INSTRUCTIONS
+    "Return raw JSON so the supervisor can format the response. "
+    "Always request up to 10 itineraries. Start with Lufthansa Group carriers; if SearchAPI returns zero flights, "
+    "retry with the full Star Alliance list. If that still succeeds with zero itineraries, inform the supervisor that "
+    "traveller permission is required before widening to non-Star Alliance airlines.\n\n" + BASE_INSTRUCTIONS
 )
 
 DESTINATION_SCOUT_INSTRUCTIONS = """\

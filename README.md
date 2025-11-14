@@ -70,6 +70,8 @@ pip install -e .[dev]
 - Functions in `supervisor/renderers.py` convert `conversation_state.destination_cards` and `conversation_state.flight_results` into narrative-ready snippets (used by Paula/Gina/Bianca).
 - Reusable airline/price helpers live in `shared/flight_utils.py` and back both agents + supervisor formatting.
 - `supervisor/composer.py` exposes `compose_reply`, which stitches persona openers/closers with the rendered destination + flight sections for final replies or tooling-based tests.
+- Gina’s questionnaire is enforced in `compose_reply` so she always repeats the mandatory “choose 1–4” prompt until `conversation_state.travel_personality_choice` is set; the prompt now instructs the supervisor to write that value as soon as the traveler answers.
+- Flight summaries are rendered in the multi-line format shown in the spec (Direct Flights/Connecting Flights, aircraft, amenities, baggage, price) with up to 10 itineraries surfaced and Star Alliance fallbacks handled automatically when Lufthansa Group flights are unavailable.
 
 ## Local CLI Chat
 
