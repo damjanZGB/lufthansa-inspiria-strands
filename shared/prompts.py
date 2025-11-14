@@ -27,6 +27,15 @@ Engine-specific parameters:
    Optional: arrival_id (if destination fixed), interests, adults,
    included_airlines=LH,LX,OS,SN,EW,4Y,EN.
    Always convert SearchAPI responses into Lufthansa Group compliant inspiration cards.
+   API window: `time_period` must be within ~6 months of `current_time`. If travellers request dates further out,
+   propose the closest eligible window or ask for permission to shift earlier.
+
+Time-window guardrails:
+- Google Flights Calendar accepts up to 60 days per request; use multiple calls if necessary but stay within 11 months
+  of `current_time`.
+- Google Travel Explore only supports trips within ~6 months of today. Convert any natural-language request into ISO
+  start/end dates anchored by `current_time` and clamp tokens (e.g., roll “next year” to the earliest six-month window or
+  ask for clarification) before calling `engine=google_travel_explore`.
 """
 
 SUPERVISOR_DELEGATE_INSTRUCTIONS = """\
@@ -101,6 +110,9 @@ SearchAPI (Google Travel Explore) contract:
   included_airlines=LH,LX,OS,SN,EW,4Y,EN, adults>=1, limit>=24.
 - Optional query params: arrival_id (when traveller picks a destination),
   interests, adults, limit, max_price.
+  Reminder: `time_period` must reference a window within ~6 months of `current_time`. Convert free-form phrases (e.g.,
+  “next summer holiday”, “in a year”) into ISO start/end dates anchored to `current_time` and, if needed, ask for a
+  nearer timeframe before calling the API.
 
 Open-Meteo contract:
 - method: GET
