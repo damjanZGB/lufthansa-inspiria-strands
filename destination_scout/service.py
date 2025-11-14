@@ -13,6 +13,8 @@ from pydantic import BaseModel, Field, PositiveInt, conint, model_validator
 
 logger = logging.getLogger(__name__)
 
+ALLOWED_INTERESTS: tuple[str, ...] = ("popular", "outdoors", "beaches", "museums", "history", "skiing")
+
 
 class DestinationScoutError(RuntimeError):
     """Raised when downstream services fail."""
@@ -115,7 +117,9 @@ class SearchAPIClient:
         if request.arrival_ids:
             params["arrival_id"] = request.arrival_ids[0]
         if request.interests:
-            params["interests"] = ",".join(request.interests)
+            filtered = _filter_interests(request.interests)
+            if filtered:
+                params["interests"] = ",".join(filtered)
 
         headers = {"Authorization": f"Bearer {self._api_key}"}
         params["api_key"] = self._api_key
@@ -320,6 +324,9 @@ class DestinationScoutService:
         request: DestinationScoutRequest,
     ) -> WeatherSummary | None:
         start_date, end_date = self._derive_weather_window(request)
+        if start_date - date.today() > timedelta(days=16):
+            logger.debug("Skipping weather lookup beyond Open-Meteo forecast horizon")
+            return None
         try:
             forecast = self._weather_client.fetch_daily(
                 latitude,
@@ -409,6 +416,15 @@ def _allowed_month_tokens(today: date) -> set[str]:
             month = 1
             year += 1
     return tokens
+
+
+def _filter_interests(raw: list[str]) -> list[str]:
+    filtered: list[str] = []
+    for interest in raw:
+        normalized = (interest or "").strip().lower()
+        if normalized in ALLOWED_INTERESTS and normalized not in filtered:
+            filtered.append(normalized)
+    return filtered
 
 
 def _normalise_events(raw_events: Any) -> list[str]:

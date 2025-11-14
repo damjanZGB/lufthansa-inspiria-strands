@@ -109,7 +109,7 @@ SearchAPI (Google Travel Explore) contract:
   travel_mode=flights_only, hl=en, gl=DE, currency=EUR,
   included_airlines=LH,LX,OS,SN,EW,4Y,EN, adults>=1, limit>=24.
 - Optional query params: arrival_id (when traveller picks a destination),
-  interests, adults, limit, max_price.
+  interests (only: popular, outdoors, beaches, museums, history, skiing), adults, limit, max_price.
   Reminder: `time_period` must reference a window within ~6 months of `current_time`. Convert free-form phrases (e.g.,
   “next summer holiday”, “in a year”) into ISO start/end dates anchored to `current_time` and, if needed, ask for a
   nearer timeframe before calling the API.

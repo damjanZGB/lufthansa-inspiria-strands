@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -275,12 +275,16 @@ def _resolve_weather_headline(card: dict[str, Any], trip_window: tuple[str, str]
     if latitude is None or longitude is None:
         return "Weather snapshot unavailable"
 
+    start = date.fromisoformat(trip_window[0])
+    end = date.fromisoformat(trip_window[1])
+    if start - date.today() > timedelta(days=16):
+        return "Weather snapshot unavailable"
     try:
         payload = fetch_weather_snapshot(
             latitude=latitude,
             longitude=longitude,
-            start_date=date.fromisoformat(trip_window[0]),
-            end_date=date.fromisoformat(trip_window[1]),
+            start_date=start,
+            end_date=end,
         )
         summary = summarise_weather(payload)
         return summary or "Weather snapshot unavailable"

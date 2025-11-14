@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 import httpx
@@ -12,6 +12,7 @@ from destination_scout.service import (
     OpenMeteoClient,
     SearchAPIClient,
     _build_time_period,
+    _filter_interests,
 )
 
 
@@ -62,12 +63,14 @@ def test_generate_cards_includes_weather_snapshot() -> None:
         weather_client,
         pacing_delay=0.0,
     )
+    trip_start = date.today() + timedelta(days=1)
+    trip_end = trip_start + timedelta(days=6)
     request = DestinationScoutRequest(
         departure_id="FRA",
         time_window=TimeWindow(
-            token="one_week_trip_in_march_2026",
-            start_date=date(2026, 3, 1),
-            end_date=date(2026, 3, 7),
+            token="one_week_trip_in_march",
+            start_date=trip_start,
+            end_date=trip_end,
         ),
         interests=["culture"],
         max_cards=1,
@@ -181,3 +184,8 @@ def test_build_time_period_accepts_valid_month_tokens() -> None:
     window = TimeWindow(token="weekend_in_march")
     token = _build_time_period(window, today=date(2026, 1, 15))
     assert token == "weekend_in_march"
+
+
+def test_filter_interests_removes_unsupported_values() -> None:
+    interests = _filter_interests(["snow", "beaches", "Skiing", "museums", "snow"])
+    assert interests == ["beaches", "skiing", "museums"]
