@@ -1,3 +1,5 @@
 strands-agents>=1.16.0
+strands-agents-tools>=0.2.15
+pydantic-settings>=2.6.1
 opentelemetry-exporter-otlp>=1.38.0
 httpx>=0.28.0

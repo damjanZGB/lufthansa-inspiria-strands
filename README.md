@@ -70,3 +70,18 @@ pip install -e .[dev]
 - Functions in `supervisor/renderers.py` convert `conversation_state.destination_cards` and `conversation_state.flight_results` into narrative-ready snippets (used by Paula/Gina/Bianca).
 - Reusable airline/price helpers live in `shared/flight_utils.py` and back both agents + supervisor formatting.
 - `supervisor/composer.py` exposes `compose_reply`, which stitches persona openers/closers with the rendered destination + flight sections for final replies or tooling-based tests.
+
+## Local CLI Chat
+
+Need to send ad-hoc prompts without crafting JSON payloads? Load your `.env` (for `SEARCHAPI_KEY`) and run:
+
+```bash
+# Supervisor persona chat
+python scripts/chat_agent.py --agent supervisor --persona paula
+
+# Flight Search or Destination Scout directly
+python scripts/chat_agent.py --agent flight_search
+python scripts/chat_agent.py --agent destination_scout
+```
+
+The script mirrors Strands’ personal-assistant samples: it toggles `STRANDS_TOOL_CONSOLE_MODE`, keeps the agent session in memory, and streams responses for whichever agent you select.

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from strands import Agent
 from strands.models import BedrockModel
-from strands.tools import HttpRequestTool
+from strands_tools import http_request
 
 from config.settings import get_settings
 from shared.prompts import FLIGHT_SEARCH_PROMPT_TEMPLATE
+
+HTTP_REQUEST_TOOL = http_request.http_request
 
 
 def build_agent() -> Agent:
@@ -24,4 +26,4 @@ def build_agent() -> Agent:
         temperature=settings.bedrock_temperature,
         max_tokens=settings.bedrock_max_tokens,
     )
-    return Agent(model=model, system_prompt=prompt, tools=[HttpRequestTool()])
+    return Agent(model=model, system_prompt=prompt, tools=[HTTP_REQUEST_TOOL])

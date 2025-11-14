@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import BaseSettings, Field, HttpUrl
+from pydantic import Field, HttpUrl
+
+try:
+    from pydantic_settings import BaseSettings
+except ImportError:  # pragma: no cover - fallback for legacy environments
+    from pydantic import BaseSettings
 
 
 class Settings(BaseSettings):
