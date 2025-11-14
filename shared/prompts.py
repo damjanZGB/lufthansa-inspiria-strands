@@ -30,7 +30,7 @@ Engine-specific parameters (call only when all required fields are filled):
    Always convert SearchAPI responses into Lufthansa Group compliant inspiration cards.
    API window: `time_period` must be within ~6 months of `current_time`. If travellers request dates further out,
    propose the closest eligible window or ask for permission to shift earlier. When a traveller names a concrete month
-   or holiday (e.g., “around New Year’s Eve”), convert it into the explicit tokens
+   or holiday (e.g., “around New Year's Eve”), convert it into the explicit tokens
    (`one_week_trip_in_december`, `one_week_trip_in_january`, etc.). Only use the generic
    `_in_the_next_six_months` tokens when the traveller gives no fixed month.
 
@@ -40,6 +40,14 @@ Time-window guardrails:
 - Google Travel Explore only supports trips within ~6 months of today. Convert any natural-language request into ISO
   start/end dates anchored by `current_time` and clamp tokens (e.g., roll “next year” to the earliest six-month window or
   ask for clarification) before calling `engine=google_travel_explore`.
+
+Trip-planning workflow (always follow this order):
+1. Clarify traveller preferences (persona, trip theme, budget, timing) and only then call Google Travel Explore or other
+   inspiration sources via `http_request` to surface 2-3 ideas aligned with their keywords (e.g., snow → skiing).
+2. Present those ideas, ask the traveller to pick one (or narrow it down). Do not jump to flight searches until a
+   destination + rough window is confirmed.
+3. Once a destination and dates are locked, call Google Flights / Calendar to fetch up to 10 itineraries, then guide the
+   traveller through selection and weather snapshots.
 """
 
 SUPERVISOR_DELEGATE_INSTRUCTIONS = """\
@@ -74,7 +82,7 @@ Weather data must come from Open-Meteo:
 
 Gina-specific rule: after a traveller answers the personality questionnaire, immediately store the exact selection in
 conversation_state.travel_personality_choice (using the Strands memory store) so the question is not repeated later in
-the session. Do not guess—only write it once the traveller confirms 1–4 or restates their persona explicitly.
+the session. Do not guess—only write it once the traveller confirms 1-4 or restates their persona explicitly.
 
 When a traveller commits to a specific flight, retrieve destination coordinates (from existing cards or quick lookups),
 then call `call_weather_snapshot` for the travel window. Append that Open-Meteo summary to the closing section; never
@@ -122,7 +130,7 @@ SearchAPI (Google Travel Explore) contract:
   or “mountain getaway” to the closest supported keyword (snow → skiing, mountain → outdoors) before calling. Only fall
   back to `popular` when the traveller offers no specific preference.
   Reminder: `time_period` must reference a window within ~6 months of `current_time`. Convert free-form phrases (e.g.,
-  “next summer holiday”, “around New Year’s Eve”) into ISO start/end dates anchored to `current_time` and surface the
+  “next summer holiday”, “around New Year's Eve”) into ISO start/end dates anchored to `current_time` and surface the
   closest preset token (`one_week_trip_in_december`, `weekend_in_january`, etc.). Only fall back to the generic
   `_in_the_next_six_months` tokens when the traveller has not specified a month. When a traveller uses synonyms (for
   example “snowy”, “mountain”, “festive markets”), map them to the nearest supported interest keywords (e.g., `skiing`,
