@@ -74,6 +74,20 @@ def call_flight_search(request: dict[str, Any]) -> dict[str, Any]:
     except ValidationError as exc:
         return _error(f"Invalid FlightSearchRequest: {exc}")
 
+    today = date.today()
+    if parsed.outbound_date < today or (parsed.return_date and parsed.return_date < today):
+        return _error(
+            "Outbound/return dates are in the past. Call the `current_time` tool and normalise the itinerary to future dates."
+        )
+    if parsed.calendar_window:
+        if (
+            parsed.calendar_window.start_date < today
+            or parsed.calendar_window.end_date < today
+        ):
+            return _error(
+                "Calendar window dates are in the past. Use `current_time` to anchor the traveller's request to the future."
+            )
+
     service = _get_flight_service()
     response: FlightSearchResponse = service.search(parsed)
     return {"status": "success", "data": response.model_dump()}

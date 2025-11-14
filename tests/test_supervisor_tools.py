@@ -81,3 +81,18 @@ def test_call_weather_snapshot_returns_summary(monkeypatch) -> None:
 
     assert result["status"] == "success"
     assert "summary" in result["data"]
+
+
+def test_call_flight_search_rejects_past_dates(monkeypatch) -> None:
+    dummy_service = DummyFlightService()
+    monkeypatch.setattr(supervisor_tools, "_flight_service", dummy_service)
+
+    payload = {
+        "departure_id": "FRA",
+        "arrival_id": "JFK",
+        "outbound_date": "2023-01-01",
+    }
+
+    result = supervisor_tools.call_flight_search(payload)
+    assert result["status"] == "error"
+    assert "current_time" in result["message"]
