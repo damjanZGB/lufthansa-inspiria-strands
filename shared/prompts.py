@@ -68,7 +68,7 @@ If SearchAPI returns zero itineraries even after expanding to the Star Alliance 
 for permission before including non-Star Alliance carriers.
 
 Weather data must come from Open-Meteo:
-- Use `call_weather_snapshot` with {latitude, longitude, start_date (YYYY-MM-DD), end_date} to retrieve forecasts
+- Use `call_weather_snapshot` with {{latitude, longitude, start_date (YYYY-MM-DD), end_date}} to retrieve forecasts
   (limited to ~16 days from `current_time`). Summarise the response before presenting it to travellers.
 
 Gina-specific rule: after a traveller answers the personality questionnaire, immediately store the exact selection in
