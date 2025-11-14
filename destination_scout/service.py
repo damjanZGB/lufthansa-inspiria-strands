@@ -108,7 +108,7 @@ class SearchAPIClient:
             "adults": request.adults,
             "limit": request.limit,
             "gl": "DE",
-            "hl": "en",
+            "hl": "en-GB",
             "currency": "EUR",
             "included_airlines": "LH,LX,OS,SN,EW,4Y,EN",
         }
@@ -118,6 +118,7 @@ class SearchAPIClient:
             params["interests"] = ",".join(request.interests)
 
         headers = {"Authorization": f"Bearer {self._api_key}"}
+        params["api_key"] = self._api_key
         try:
             with httpx.Client(timeout=self._timeout, transport=self._transport) as client:
                 response = client.get(self._base_url, params=params, headers=headers)
