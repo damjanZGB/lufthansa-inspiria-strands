@@ -188,4 +188,4 @@ def test_build_time_period_accepts_valid_month_tokens() -> None:
 
 def test_filter_interests_removes_unsupported_values() -> None:
     interests = _filter_interests(["snow", "beaches", "Skiing", "museums", "snow"])
-    assert interests == ["beaches", "skiing", "museums"]
+    assert interests == ["skiing", "beaches", "museums"]

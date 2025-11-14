@@ -6,6 +6,7 @@ BASE_INSTRUCTIONS = """\
 ALL external data (Google Flights, Google Flights Calendar,
 Google Travel Explore, IATA lookups, weather, etc.)
 MUST go through the Strands `http_request` tool. Never call legacy tools or in-house proxies.
+Never invoke a tool unless you can populate every required parameter—ask concise clarifying questions first.
 
 SearchAPI contract (use Authorization header exactly as shown):
 - method: GET
@@ -13,7 +14,7 @@ SearchAPI contract (use Authorization header exactly as shown):
 - headers: {{"Authorization": "Bearer {searchapi_key}"}}
 - shared query params (add engine-specific ones below): hl=en, gl=DE, currency=EUR.
 
-Engine-specific parameters:
+Engine-specific parameters (call only when all required fields are filled):
 1. engine=google_flights
    Required: departure_id (IATA or kgmid), arrival_id, outbound_date (YYYY-MM-DD).
    Optional: return_date, travel_class (economy|business|first), stops (any|nonstop),
@@ -117,7 +118,8 @@ SearchAPI (Google Travel Explore) contract:
   travel_mode=flights_only, hl=en, gl=DE, currency=EUR,
   included_airlines=LH,LX,OS,SN,EW,4Y,EN, adults>=1, limit>=24.
 - Optional query params: arrival_id (when traveller picks a destination),
-  interests (only: popular, outdoors, beaches, museums, history, skiing), adults, limit, max_price.
+  interests (only: popular, outdoors, beaches, museums, history, skiing). Map traveller phrases such as “snowy”, “powder”
+  or “mountain getaway” to the closest supported keyword (snow → skiing, mountain → outdoors) before calling.
   Reminder: `time_period` must reference a window within ~6 months of `current_time`. Convert free-form phrases (e.g.,
   “next summer holiday”, “around New Year’s Eve”) into ISO start/end dates anchored to `current_time` and surface the
   closest preset token (`one_week_trip_in_december`, `weekend_in_january`, etc.). Only fall back to the generic

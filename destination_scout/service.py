@@ -14,6 +14,17 @@ from pydantic import BaseModel, Field, PositiveInt, conint, model_validator
 logger = logging.getLogger(__name__)
 
 ALLOWED_INTERESTS: tuple[str, ...] = ("popular", "outdoors", "beaches", "museums", "history", "skiing")
+INTEREST_SYNONYMS: dict[str, str] = {
+    "snow": "skiing",
+    "snowy": "skiing",
+    "powder": "skiing",
+    "ski": "skiing",
+    "skiing": "skiing",
+    "mountain": "outdoors",
+    "mountains": "outdoors",
+    "alps": "outdoors",
+    "hiking": "outdoors",
+}
 
 
 class DestinationScoutError(RuntimeError):
@@ -422,6 +433,7 @@ def _filter_interests(raw: list[str]) -> list[str]:
     filtered: list[str] = []
     for interest in raw:
         normalized = (interest or "").strip().lower()
+        normalized = INTEREST_SYNONYMS.get(normalized, normalized)
         if normalized in ALLOWED_INTERESTS and normalized not in filtered:
             filtered.append(normalized)
     return filtered
