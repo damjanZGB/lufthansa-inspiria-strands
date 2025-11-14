@@ -434,8 +434,10 @@ def _filter_interests(raw: list[str]) -> list[str]:
     for interest in raw:
         normalized = (interest or "").strip().lower()
         normalized = INTEREST_SYNONYMS.get(normalized, normalized)
-        if normalized in ALLOWED_INTERESTS and normalized not in filtered:
+        if normalized in ALLOWED_INTERESTS and normalized != "popular" and normalized not in filtered:
             filtered.append(normalized)
+    if not filtered:
+        filtered.append("popular")
     return filtered
 
 
