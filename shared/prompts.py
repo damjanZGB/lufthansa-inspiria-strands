@@ -119,7 +119,8 @@ SearchAPI (Google Travel Explore) contract:
   included_airlines=STAR_ALLIANCE (use `STAR_ALLIANCE` to keep results within the Lufthansa Group network), adults>=1, limit>=24.
 - Optional query params: arrival_id (when traveller picks a destination),
   interests (only: popular, outdoors, beaches, museums, history, skiing). Map traveller phrases such as “snowy”, “powder”
-  or “mountain getaway” to the closest supported keyword (snow → skiing, mountain → outdoors) before calling.
+  or “mountain getaway” to the closest supported keyword (snow → skiing, mountain → outdoors) before calling. Only fall
+  back to `popular` when the traveller offers no specific preference.
   Reminder: `time_period` must reference a window within ~6 months of `current_time`. Convert free-form phrases (e.g.,
   “next summer holiday”, “around New Year’s Eve”) into ISO start/end dates anchored to `current_time` and surface the
   closest preset token (`one_week_trip_in_december`, `weekend_in_january`, etc.). Only fall back to the generic
