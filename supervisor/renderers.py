@@ -275,6 +275,12 @@ def _resolve_weather_headline(card: dict[str, Any], trip_window: tuple[str, str]
     if latitude is None or longitude is None:
         return "Weather snapshot unavailable"
 
+def _coerce_float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
     start = date.fromisoformat(trip_window[0])
     end = date.fromisoformat(trip_window[1])
     if start - date.today() > timedelta(days=16):
