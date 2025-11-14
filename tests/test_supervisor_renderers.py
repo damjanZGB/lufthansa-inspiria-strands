@@ -61,6 +61,7 @@ def test_compose_reply_merges_cards_and_flights() -> None:
                 "destination": "Lisbon",
                 "why_now": "Atlantic breezes and tile-wrapped hills.",
                 "weather": {"headline": "24°C high / 16°C low; precip 10%"},
+                "arrival_id": "LIS",
             }
         ],
         "flight_results": {
@@ -71,6 +72,29 @@ def test_compose_reply_merges_cards_and_flights() -> None:
                         "price": "€640",
                         "total_duration": "09h 15m",
                         "stops": 0,
+                        "segments": [
+                            {
+                                "airline_code": "LH",
+                                "flight_number": "401",
+                                "departure_airport": "FRA",
+                                "arrival_airport": "LIS",
+                                "departure_time": "2026-03-01T09:10:00",
+                                "arrival_time": "2026-03-01T11:10:00",
+                                "aircraft": "Airbus A350",
+                                "amenities": ["Wi-Fi"],
+                                "seat_type": "Below Average Legroom (29 inches)",
+                                "has_usb": True,
+                            },
+                            {
+                                "airline_code": "LH",
+                                "flight_number": "402",
+                                "departure_airport": "LIS",
+                                "arrival_airport": "FRA",
+                                "departure_time": "2026-03-10T14:00:00",
+                                "arrival_time": "2026-03-10T18:30:00",
+                            },
+                        ],
+                        "baggage": "Bag and fare conditions depend on the return flight",
                     }
                 ]
             },
@@ -82,6 +106,7 @@ def test_compose_reply_merges_cards_and_flights() -> None:
 
     assert "Lisbon" in text
     assert "Price hint" in text
+    assert "Destination Weather" in text
 
 
 def test_gina_questionnaire_appended_when_missing_choice() -> None:

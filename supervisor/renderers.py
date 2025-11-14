@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from datetime import datetime
@@ -62,6 +62,37 @@ def format_flight_summary(
     if calendar_url:
         sections.append(f"Calendar grid: {calendar_url}")
     return "\n\n".join(sections)
+
+
+def build_destination_weather_report(conversation_state: Mapping[str, Any]) -> str | None:
+    cards = conversation_state.get("destination_cards")
+    if not isinstance(cards, list) or not cards:
+        return None
+    flight_results = conversation_state.get("flight_results") or {}
+    flights_payload = flight_results.get("flights")
+    if not isinstance(flights_payload, Mapping):
+        return None
+    flights = _collect_flights(flights_payload)
+    if not flights:
+        return None
+    target_flight = flights[0]
+    arrival_code = _extract_arrival_code(target_flight)
+    matched_card = _match_destination_card(cards, arrival_code)
+    if not matched_card:
+        return None
+    weather = matched_card.get("weather")
+    if not isinstance(weather, Mapping):
+        return None
+    trip_window = _extract_trip_window(target_flight)
+    if not trip_window:
+        return None
+    destination = matched_card.get("destination") or arrival_code or "Destination"
+    headline = weather.get("headline") or "Weather snapshot unavailable"
+
+    return (
+        "Destination Weather\n"
+        f"{destination} ({trip_window[0]} to {trip_window[1]}): {headline}"
+    )
 
 
 def _collect_flights(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -127,7 +158,7 @@ def _format_primary_segment(index: int, segment: dict[str, Any]) -> str:
     arr_time, arr_date = _format_time(segment.get("arrival_time"))
     next_day = " NEXT DAY" if dep_date and arr_date and dep_date != arr_date else ""
     date_text = dep_date or ""
-    return f"{index}. **{code}**: {departure} {dep_time} -> {arrival} {arr_time} | {date_text}"
+    return f"{index}. **{code}**: {departure} {dep_time} -> {arrival} {arr_time}{next_day} | {date_text}"
 
 
 def _format_connection_segment(segment: dict[str, Any]) -> str:
@@ -201,6 +232,36 @@ def _is_direct(flight: dict[str, Any]) -> bool:
     if isinstance(segments, list):
         return len(segments) <= 1
     return False
+
+
+def _extract_arrival_code(flight: dict[str, Any]) -> str | None:
+    segments = flight.get("segments")
+    if isinstance(segments, list) and segments:
+        arrival = segments[-1].get("arrival_airport") or segments[-1].get("arrival_id")
+        if isinstance(arrival, dict):
+            return arrival.get("code") or arrival.get("name")
+        return arrival
+    return flight.get("arrival_id")
+
+
+def _match_destination_card(cards: list[dict[str, Any]], arrival_code: str | None) -> dict[str, Any] | None:
+    if arrival_code:
+        for card in cards:
+            card_arrival = card.get("arrival_id") or card.get("destination")
+            if card_arrival and arrival_code.lower() in str(card_arrival).lower():
+                return card
+    return cards[0] if cards else None
+
+
+def _extract_trip_window(flight: dict[str, Any]) -> tuple[str, str] | None:
+    segments = flight.get("segments")
+    if not isinstance(segments, list) or not segments:
+        return None
+    depart = _format_time(segments[0].get("departure_time"))[1]
+    return_arrival = _format_time(segments[-1].get("arrival_time"))[1]
+    if not depart or not return_arrival:
+        return None
+    return depart, return_arrival
 
 
 __all__ = ["format_destination_cards", "format_flight_summary"]
